@@ -1093,3 +1093,109 @@ FEED_HTML = '''
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 10000))
     app.run(host='0.0.0.0', port=port)
+
+@app.route('/admin')
+def admin():
+    """Admin dashboard - shows research stats"""
+    conn = get_db()
+    c = conn.cursor()
+    
+    # Get statistics
+    c.execute("SELECT COUNT(*) FROM users")
+    total_users = c.fetchone()[0]
+    
+    c.execute("SELECT condition, COUNT(*) FROM users GROUP BY condition")
+    condition_counts = dict(c.fetchall())
+    
+    c.execute("SELECT COUNT(*) FROM interactions")
+    total_interactions = c.fetchone()[0]
+    
+    c.execute("SELECT COUNT(*) FROM interactions WHERE action LIKE '%expand%'")
+    total_expands = c.fetchone()[0]
+    
+    c.execute("SELECT COUNT(*) FROM interactions WHERE action = 'interested'")
+    total_interested = c.fetchone()[0]
+    
+    c.execute('''SELECT perspective, COUNT(*) FROM interactions GROUP BY perspective''')
+    perspective_counts = dict(c.fetchall())
+    
+    c.execute('''SELECT action, COUNT(*) FROM interactions GROUP BY action''')
+    action_counts = dict(c.fetchall())
+    
+    # Get recent interactions
+    c.execute('''SELECT user_id, timestamp, perspective, action, rating 
+                 FROM interactions ORDER BY timestamp DESC LIMIT 20''')
+    recent = c.fetchall()
+    
+    conn.close()
+    
+    # Simple HTML admin dashboard
+    html = f'''
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>PolitiScope Admin</title>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <style>
+            body {{ font-family: -apple-system, BlinkMacSystemFont, sans-serif; background: #f5f5f5; padding: 20px; }}
+            .container {{ max-width: 1200px; margin: 0 auto; }}
+            .header {{ background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; border-radius: 15px; margin-bottom: 30px; }}
+            .stats-grid {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; margin-bottom: 30px; }}
+            .stat-card {{ background: white; border-radius: 10px; padding: 20px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }}
+            .stat-number {{ font-size: 2em; font-weight: bold; color: #333; }}
+            table {{ width: 100%; background: white; border-radius: 10px; padding: 20px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }}
+            th, td {{ padding: 10px; text-align: left; border-bottom: 1px solid #eee; }}
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <div class="header">
+                <h1>🔬 PolitiScope Admin Dashboard</h1>
+                <p>Research Data - Condition hidden from users</p>
+            </div>
+            
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <h3>Total Users</h3>
+                    <div class="stat-number">{total_users}</div>
+                </div>
+                <div class="stat-card">
+                    <h3>Normal (Filter Bubble)</h3>
+                    <div class="stat-number">{condition_counts.get('normal', 0)}</div>
+                </div>
+                <div class="stat-card">
+                    <h3>Diverse (Balanced)</h3>
+                    <div class="stat-number">{condition_counts.get('diverse', 0)}</div>
+                </div>
+                <div class="stat-card">
+                    <h3>Total Interactions</h3>
+                    <div class="stat-number">{total_interactions}</div>
+                </div>
+                <div class="stat-card">
+                    <h3>Expands</h3>
+                    <div class="stat-number">{total_expands}</div>
+                </div>
+                <div class="stat-card">
+                    <h3>Interested</h3>
+                    <div class="stat-number">{total_interested}</div>
+                </div>
+            </div>
+            
+            <h2>Recent Activity</h2>
+            <table>
+                <tr>
+                    <th>User ID</th>
+                    <th>Time</th>
+                    <th>Perspective</th>
+                    <th>Action</th>
+                    <th>Rating</th>
+                </tr>
+                {"".join(f"<tr><td>{r[0]}</td><td>{r[1][:19]}</td><td>{r[2] or '—'}</td><td>{r[3]}</td><td>{r[4] or '—'}</td></tr>" for r in recent)}
+            </table>
+        </div>
+    </body>
+    </html>
+    '''
+    
+    return html
