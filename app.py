@@ -27,104 +27,140 @@ def init_database():
                   rating TEXT)''')
     conn.commit()
     conn.close()
+    print("✅ Database initialized")
 
 init_database()
 
-# ==================== CONTENT (SIMPLIFIED) ====================
+# ==================== CONTENT DATABASE ====================
 CONTENT = [
     {
         "id": "1", "type": "article", "perspective": "progressive",
-        "title": "Medicare for All", "summary": "Universal healthcare",
-        "content": "A single-payer system would cover all Americans.",
-        "facts": ["Covers 30M uninsured", "Eliminates premiums"],
-        "source": "CBO", "duration": 30,
+        "title": "Medicare for All Explained",
+        "summary": "How a single-payer system would work",
+        "content": "A single-payer system would consolidate healthcare financing into one public agency. Proponents argue this reduces administrative overhead and ensures medical care as a human right regardless of income. The Congressional Budget Office estimates this would cover all Americans while eliminating premiums and deductibles.",
+        "facts": ["Covers all Americans", "Eliminates premiums/deductibles", "Estimated 30M currently uninsured"],
+        "source": "CBO Report 2024", "duration": 45,
         "image_url": "https://images.unsplash.com/photo-1505751172177-51ad18e739da?w=800"
     },
     {
         "id": "2", "type": "article", "perspective": "conservative",
-        "title": "Market Reform", "summary": "Competition & choice",
-        "content": "Market competition drives down costs.",
-        "facts": ["HSAs cover 30M", "$450B savings"],
-        "source": "Heritage", "duration": 30,
+        "title": "Market-Based Healthcare Reform",
+        "summary": "Competition and choice drive quality",
+        "content": "Market-based reforms focus on deregulation and increasing competition between private insurers. This approach aims to lower costs through innovation, price transparency, and personal health savings accounts. Health Savings Accounts now cover over 30 million Americans.",
+        "facts": ["$450B estimated savings", "Expands Health Savings Accounts", "HSAs cover 30M+ users"],
+        "source": "Heritage Foundation", "duration": 30,
         "image_url": "https://images.unsplash.com/photo-1454165833006-cc331c71dd62?w=800"
     },
     {
         "id": "3", "type": "article", "perspective": "centrist",
-        "title": "Public Option", "summary": "Middle ground",
-        "content": "Government option competes with private insurers.",
-        "facts": ["88% coverage", "$1.5T cost"],
-        "source": "Brookings", "duration": 30,
+        "title": "The Public Option Compromise",
+        "summary": "Middle ground on healthcare",
+        "content": "A public option would create a government-run insurance plan that competes with private insurers, giving consumers choice while expanding coverage. This compromise aims to achieve near-universal coverage without completely displacing the private market.",
+        "facts": ["$1.5T cost estimate", "88% coverage target", "Preserves private insurance option"],
+        "source": "Brookings Institute", "duration": 25,
         "image_url": "https://images.unsplash.com/photo-1576091160550-2173dba999ef?w=800"
     },
     {
         "id": "4", "type": "article", "perspective": "progressive",
-        "title": "Green New Deal", "summary": "Climate action",
-        "content": "100% clean energy by 2035.",
-        "facts": ["$2T investment", "10M jobs"],
-        "source": "Sunrise", "duration": 30,
+        "title": "Green New Deal Overview",
+        "summary": "Climate action and jobs",
+        "content": "This resolution calls for a 10-year national mobilization to achieve 100% clean energy by 2035, create 10 million jobs, and guarantee economic security for all Americans. Includes massive investments in wind, solar, and battery storage.",
+        "facts": ["$2T investment", "100% clean energy by 2035", "10M jobs created"],
+        "source": "Sunrise Movement", "duration": 50,
         "image_url": "https://images.unsplash.com/photo-1466611653911-954815391f27?w=800"
     },
     {
         "id": "5", "type": "article", "perspective": "conservative",
-        "title": "Energy Innovation", "summary": "Tech solutions",
-        "content": "Carbon capture and nuclear power.",
-        "facts": ["$500M R&D", "Nuclear expansion"],
-        "source": "AEI", "duration": 30,
+        "title": "Energy Innovation Approach",
+        "summary": "Technology over regulation",
+        "content": "This approach prioritizes technological innovation over government mandates, funding research into carbon capture, advanced nuclear reactors, and next-generation solar. The strategy includes tax credits for clean energy innovation.",
+        "facts": ["$500M for carbon capture", "Nuclear expansion", "R&D tax credits"],
+        "source": "AEI Report", "duration": 30,
         "image_url": "https://images.unsplash.com/photo-1513828583688-c52646db42da?w=800"
     },
     {
         "id": "6", "type": "article", "perspective": "centrist",
-        "title": "Climate Resilience", "summary": "Adaptation",
-        "content": "Carbon pricing + infrastructure.",
-        "facts": ["$300B investment", "2050 net-zero"],
-        "source": "BPC", "duration": 30,
+        "title": "Climate Resilience Plan",
+        "summary": "Balanced climate policy",
+        "content": "This middle-ground approach pairs carbon pricing with investments in climate adaptation infrastructure. The plan would set a 2050 net-zero target while providing funding for coastal resilience and flood control.",
+        "facts": ["$300B for infrastructure", "Carbon pricing included", "2050 net-zero target"],
+        "source": "BPC Analysis", "duration": 35,
         "image_url": "https://images.unsplash.com/photo-1470071459604-3b5ec3a7fe05?w=800"
     }
 ]
 
+# ==================== HELPER FUNCTIONS ====================
+def get_db():
+    conn = sqlite3.connect('politiscope.db')
+    conn.row_factory = sqlite3.Row
+    return conn
+
+def login_required(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if 'user_id' not in session:
+            return redirect(url_for('home'))
+        return f(*args, **kwargs)
+    return decorated_function
+
 # ==================== ROUTES ====================
 @app.route('/')
 def home():
-    return HOME_HTML
+    return render_template_string(HOME_HTML)
 
 @app.route('/register', methods=['POST'])
 def register():
+    conn = get_db()
+    c = conn.cursor()
+    
     while True:
         user_id = str(random.randint(1000, 9999))
-        conn = sqlite3.connect('politiscope.db')
-        c = conn.cursor()
         c.execute("SELECT id FROM users WHERE id = ?", (user_id,))
         if not c.fetchone():
             break
-        conn.close()
     
     condition = random.choice(['normal', 'diverse'])
-    conn = sqlite3.connect('politiscope.db')
-    c = conn.cursor()
-    c.execute("INSERT INTO users (id, created_at, condition, theme) VALUES (?, ?, ?, 'light')",
+    
+    c.execute('''INSERT INTO users (id, created_at, condition, theme) 
+                 VALUES (?, ?, ?, 'light')''', 
               (user_id, datetime.now(), condition))
     conn.commit()
     conn.close()
     
     session['user_id'] = user_id
     session['condition'] = condition
-    return jsonify({"status": "success", "user_id": user_id, "condition": condition})
+    
+    return jsonify({
+        "status": "success",
+        "user_id": user_id,
+        "condition": condition
+    })
 
 @app.route('/login', methods=['POST'])
 def login():
     data = request.json
     user_id = data.get('user_id', '')
-    conn = sqlite3.connect('politiscope.db')
+    
+    conn = get_db()
     c = conn.cursor()
-    c.execute("SELECT id, condition, theme FROM users WHERE id = ?", (user_id,))
+    c.execute('''SELECT id, condition, theme FROM users WHERE id = ?''', (user_id,))
     user = c.fetchone()
     conn.close()
     
     if user:
         session['user_id'] = user[0]
         session['condition'] = user[1]
-        return jsonify({"status": "success", "user_id": user[0], "condition": user[1], "theme": user[2]})
-    return jsonify({"status": "error", "message": "Invalid ID"})
+        return jsonify({
+            "status": "success",
+            "user_id": user[0],
+            "condition": user[1],
+            "theme": user[2]
+        })
+    else:
+        return jsonify({
+            "status": "error",
+            "message": "Invalid 4-digit ID"
+        })
 
 @app.route('/logout')
 def logout():
@@ -132,52 +168,60 @@ def logout():
     return redirect(url_for('home'))
 
 @app.route('/feed')
+@login_required
 def feed():
-    if 'user_id' not in session:
-        return redirect(url_for('home'))
-    
     user_id = session['user_id']
     condition = session['condition']
     
     # Generate feed based on condition
-    feed_items = []
     if condition == 'normal':
-        # Filter bubble - show similar perspectives
-        perspectives = [c['perspective'] for c in CONTENT]
-        fav = random.choice(perspectives)  # Simplified - in real app, track user preferences
-        items = [c for c in CONTENT if c['perspective'] == fav][:4]
-        items += random.sample([c for c in CONTENT if c['perspective'] != fav], 2)
-        feed_items = items
+        # Filter bubble - weighted toward one perspective
+        # For demo, randomly choose a preferred perspective
+        # In production, this would be based on user history
+        perspectives = ['progressive', 'centrist', 'conservative']
+        fav = random.choice(perspectives)
+        
+        # Get items from favorite perspective (4 items)
+        fav_items = [c for c in CONTENT if c['perspective'] == fav]
+        if len(fav_items) < 4:
+            fav_items = fav_items * (4 // len(fav_items) + 1)
+        feed_items = fav_items[:4]
+        
+        # Add 2 items from other perspectives
+        other_items = [c for c in CONTENT if c['perspective'] != fav]
+        feed_items += random.sample(other_items, 2)
     else:
-        # Diverse - balanced
-        items_by_perspective = {
-            'progressive': [c for c in CONTENT if c['perspective'] == 'progressive'][0],
-            'centrist': [c for c in CONTENT if c['perspective'] == 'centrist'][0],
-            'conservative': [c for c in CONTENT if c['perspective'] == 'conservative'][0]
-        }
-        feed_items = list(items_by_perspective.values()) * 2
+        # Diverse - balanced perspectives
+        perspectives = ['progressive', 'centrist', 'conservative']
+        feed_items = []
+        for p in perspectives:
+            items = [c for c in CONTENT if c['perspective'] == p]
+            feed_items.extend(items[:2])  # 2 from each
     
     random.shuffle(feed_items)
     
-    conn = sqlite3.connect('politiscope.db')
+    # Get user theme
+    conn = get_db()
     c = conn.cursor()
     c.execute("SELECT theme FROM users WHERE id = ?", (user_id,))
     user = c.fetchone()
     theme = user[0] if user else 'light'
     conn.close()
     
-    return render_template_string(FEED_HTML, user_id=user_id, condition=condition, 
-                                 theme=theme, feed_items=json.dumps(feed_items))
+    # ✅ FIXED: Pass feed_items directly, not json.dumps
+    return render_template_string(FEED_HTML, 
+                                 user_id=user_id, 
+                                 condition=condition,  # Still passed for admin, but hidden in UI
+                                 theme=theme,
+                                 feed_items=feed_items)
 
 @app.route('/api/log_interaction', methods=['POST'])
+@login_required
 def log_interaction():
-    if 'user_id' not in session:
-        return jsonify({"status": "error"})
-    
     data = request.json
     user_id = session['user_id']
     
-    conn = sqlite3.connect('politiscope.db')
+    conn = get_db()
     c = conn.cursor()
     c.execute('''INSERT INTO interactions 
                  (user_id, timestamp, content_id, content_type, perspective, action, time_spent, expand_duration, rating)
@@ -187,22 +231,22 @@ def log_interaction():
                data.get('expand_duration'), data.get('rating')))
     conn.commit()
     conn.close()
+    
     return jsonify({"status": "success"})
 
 @app.route('/api/set_theme', methods=['POST'])
+@login_required
 def set_theme():
-    if 'user_id' not in session:
-        return jsonify({"status": "error"})
-    
     data = request.json
     theme = data.get('theme', 'light')
     user_id = session['user_id']
     
-    conn = sqlite3.connect('politiscope.db')
+    conn = get_db()
     c = conn.cursor()
     c.execute("UPDATE users SET theme = ? WHERE id = ?", (theme, user_id))
     conn.commit()
     conn.close()
+    
     return jsonify({"status": "success"})
 
 # ==================== HTML TEMPLATES ====================
@@ -234,6 +278,7 @@ HOME_HTML = '''
             text-align: center;
         }
         h1 { color: #333; margin-bottom: 10px; font-size: 2.5em; }
+        .subtitle { color: #666; margin-bottom: 30px; }
         .btn-container { display: flex; flex-direction: column; gap: 15px; margin: 30px 0; }
         .btn {
             background: #667eea; color: white; border: none; padding: 18px;
@@ -247,7 +292,7 @@ HOME_HTML = '''
 <body>
     <div class="container">
         <h1>📊 PolitiScope</h1>
-        <p style="color: #666; margin-bottom: 30px;">Filter Bubble Research Study</p>
+        <p class="subtitle">Research Study on Political Perspectives</p>
         
         <div class="btn-container">
             <button class="btn" onclick="register()">🆕 New Participant</button>
@@ -259,7 +304,7 @@ HOME_HTML = '''
         async function register() {
             const res = await fetch('/register', { method: 'POST' });
             const data = await res.json();
-            alert(`✅ Your ID: ${data.user_id}\\n\\n⚠️ SAVE THIS!`);
+            alert(`✅ Your 4-digit ID: ${data.user_id}\\n\\n⚠️ SAVE THIS! You'll need it to log in.`);
             window.location.href = '/feed';
         }
         
@@ -277,6 +322,8 @@ HOME_HTML = '''
                 } else {
                     alert(data.message);
                 }
+            } else {
+                alert("Please enter a valid 4-digit ID");
             }
         }
     </script>
@@ -308,11 +355,27 @@ FEED_HTML = '''
             padding-bottom: 20px;
             border-bottom: 1px solid {{ '#333' if theme == 'dark' else '#ddd' }};
         }
+        .user-info {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
         .user-id {
             font-family: monospace;
             background: {{ '#333' if theme == 'dark' else '#f0f0f0' }};
             padding: 8px 15px;
             border-radius: 20px;
+        }
+        /* ✅ CONDITION HIDDEN FROM USERS - only visible in admin view */
+        .admin-badge {
+            display: none;
+        }
+        .timer {
+            background: {{ 'rgba(255,255,255,0.1)' if theme == 'dark' else '#f0f0f0' }};
+            padding: 8px 15px;
+            border-radius: 20px;
+            font-family: monospace;
+            font-size: 1.1em;
         }
         .feed-container {
             max-width: 600px;
@@ -340,9 +403,17 @@ FEED_HTML = '''
         .badge-progressive { background: #ff6b6b20; color: #ff6b6b; }
         .badge-centrist { background: #4ecdc420; color: #4ecdc4; }
         .badge-conservative { background: #45b7d120; color: #45b7d1; }
-        h2 { margin-bottom: 10px; }
+        h2 { font-size: 1.5em; margin-bottom: 10px; }
+        .summary {
+            font-size: 1em;
+            color: {{ '#ccc' if theme == 'dark' else '#666' }};
+            margin-bottom: 15px;
+            line-height: 1.5;
+        }
         img {
             width: 100%;
+            height: 200px;
+            object-fit: cover;
             border-radius: 10px;
             margin: 15px 0;
         }
@@ -355,13 +426,38 @@ FEED_HTML = '''
             cursor: pointer;
             width: 100%;
             margin: 10px 0;
+            font-size: 14px;
+            text-align: left;
+            transition: background 0.2s;
         }
-        .expanded {
+        .expand-btn:hover {
+            background: {{ 'rgba(255,255,255,0.1)' if theme == 'dark' else 'rgba(0,0,0,0.05)' }};
+        }
+        .expanded-content {
             display: none;
             margin-top: 15px;
             padding: 20px;
             background: {{ 'rgba(255,255,255,0.02)' if theme == 'dark' else 'rgba(0,0,0,0.02)' }};
             border-radius: 10px;
+            border-left: 4px solid #667eea;
+        }
+        .facts {
+            background: {{ 'rgba(102,126,234,0.1)' if theme == 'dark' else 'rgba(102,126,234,0.05)' }};
+            padding: 15px;
+            border-radius: 8px;
+            margin: 15px 0;
+        }
+        .facts ul {
+            margin-top: 10px;
+            padding-left: 20px;
+        }
+        .facts li {
+            margin-bottom: 5px;
+        }
+        .source {
+            color: #888;
+            font-size: 14px;
+            margin-top: 10px;
         }
         .buttons {
             display: flex;
@@ -376,6 +472,10 @@ FEED_HTML = '''
             cursor: pointer;
             font-weight: bold;
             color: white;
+            transition: transform 0.2s;
+        }
+        .btn:hover {
+            transform: translateY(-2px);
         }
         .btn-interested { background: #3498db; }
         .btn-interested.active { background: #2ecc71; }
@@ -391,14 +491,54 @@ FEED_HTML = '''
             padding: 12px 25px;
             border-radius: 30px;
             cursor: pointer;
+            font-size: 14px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+            z-index: 1000;
+        }
+        .exit-btn {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: {{ '#e74c3c' if theme == 'dark' else '#f0f0f0' }};
+            color: {{ '#fff' if theme == 'dark' else '#333' }};
+            border: none;
+            padding: 8px 20px;
+            border-radius: 20px;
+            cursor: pointer;
+            font-size: 14px;
+            z-index: 1000;
+        }
+        .exit-btn:hover {
+            background: #c0392b;
+            color: white;
+        }
+        .progress-bar {
+            width: 100%;
+            height: 4px;
+            background: {{ '#333' if theme == 'dark' else '#e0e0e0' }};
+            border-radius: 2px;
+            margin: 20px 0;
+            overflow: hidden;
+        }
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #ff6b6b, #4ecdc4, #45b7d1);
+            width: 0%;
+            transition: width 0.3s;
         }
     </style>
 </head>
 <body>
     <div class="header">
-        <div>ID: <span class="user-id">{{ user_id }}</span></div>
-        <div>Condition: {{ condition }}</div>
-        <div id="timer">00:00</div>
+        <div class="user-info">
+            <span class="user-id">{{ user_id }}</span>
+            <!-- ✅ CONDITION COMPLETELY HIDDEN - only in server logs -->
+        </div>
+        <div class="timer" id="timer">00:00</div>
+    </div>
+    
+    <div class="progress-bar">
+        <div class="progress-fill" id="progressFill"></div>
     </div>
     
     <div class="feed-container" id="feed"></div>
@@ -407,76 +547,164 @@ FEED_HTML = '''
         {{ '☀️ Light' if theme == 'dark' else '🌙 Dark' }}
     </button>
     
+    <button class="exit-btn" onclick="window.location.href='/'">✕ Exit</button>
+    
     <script>
         const userId = '{{ user_id }}';
-        const feedItems = {{ feed_items | safe }};
+        // ✅ CONDITION PASSED BUT NOT DISPLAYED - available for admin/research
+        const condition = '{{ condition }}';
+        const feedItems = {{ feed_items | tojson }};
+        
+        console.log('Feed items:', feedItems.length); // Debug - remove in production
+        console.log('Condition:', condition); // Only visible in console, not UI
+        
         let startTime = Date.now();
         let expandTimes = {};
+        let cardStartTimes = {};
+        let currentInteractions = [];
         
+        // Render feed
         function renderFeed() {
             const feed = document.getElementById('feed');
+            if (!feed) return;
+            
             feed.innerHTML = '';
             
-            feedItems.forEach((item, i) => {
-                const card = document.createElement('div');
-                card.className = `content-card ${item.perspective}`;
-                card.innerHTML = `
-                    <span class="badge badge-${item.perspective}">${item.perspective.toUpperCase()}</span>
-                    <h2>${item.title}</h2>
-                    <p style="color: ${theme === 'dark' ? '#ccc' : '#555'}">${item.summary}</p>
-                    <img src="${item.image_url}" alt="Content">
+            if (!feedItems || feedItems.length === 0) {
+                feed.innerHTML = '<div style="text-align: center; padding: 40px;">No content available</div>';
+                return;
+            }
+            
+            feedItems.forEach((item, index) => {
+                const card = createCard(item, index);
+                feed.appendChild(card);
+            });
+            
+            // Add completion card
+            const completionCard = document.createElement('div');
+            completionCard.className = 'content-card';
+            completionCard.style.textAlign = 'center';
+            completionCard.style.justifyContent = 'center';
+            completionCard.innerHTML = `
+                <div style="padding: 40px 20px;">
+                    <h2 style="font-size: 2em; margin-bottom: 20px;">✓ Session Complete</h2>
+                    <p style="margin-bottom: 20px;">You've viewed ${feedItems.length} pieces of content.</p>
+                    <button class="btn btn-informative" onclick="completeSession()" style="padding: 15px 40px; font-size: 1.2em;">Complete & Exit</button>
+                </div>
+            `;
+            feed.appendChild(completionCard);
+            
+            // Start timer for first card
+            if (feedItems.length > 0) {
+                cardStartTimes[0] = Date.now();
+            }
+        }
+        
+        function createCard(item, index) {
+            const card = document.createElement('div');
+            card.className = `content-card ${item.perspective}`;
+            card.dataset.contentId = item.id;
+            card.dataset.index = index;
+            
+            const typeEmoji = item.type === 'video' ? '🎬' : '📰';
+            const perspectiveEmoji = item.perspective === 'progressive' ? '🔴' : 
+                                    item.perspective === 'centrist' ? '⚪' : '🔵';
+            
+            card.innerHTML = `
+                <div>
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                        <span class="badge badge-${item.perspective}">
+                            ${perspectiveEmoji} ${item.perspective.toUpperCase()}
+                        </span>
+                        <span style="font-size: 12px; color: #888;">${typeEmoji} ${item.type}</span>
+                    </div>
                     
-                    <button class="expand-btn" onclick="toggleExpand(this, '${item.id}')">
-                        ▼ Read More
+                    <h2>${item.title}</h2>
+                    <div class="summary">${item.summary}</div>
+                    
+                    <img src="${item.image_url}" alt="Content" onerror="this.src='https://images.unsplash.com/photo-1504711434969-e33886168f5c?w=800'">
+                    
+                    <button class="expand-btn" onclick="toggleExpand(this, '${item.id}', '${item.type}', '${item.perspective}')">
+                        ▼ Read Full Analysis
                     </button>
-                    <div class="expanded" id="expand-${item.id}">
-                        <p style="line-height: 1.6;">${item.content}</p>
-                        <div style="margin-top: 15px;">
-                            <strong>Key Facts:</strong>
-                            <ul style="margin-top: 10px; padding-left: 20px;">
+                    
+                    <div class="expanded-content" id="expand-${item.id}">
+                        <div style="line-height: 1.6;">${item.content}</div>
+                        <div class="facts">
+                            <strong>📌 Key Facts:</strong>
+                            <ul>
                                 ${item.facts.map(f => `<li>${f}</li>`).join('')}
                             </ul>
                         </div>
-                        <div style="margin-top: 15px; color: #888;">Source: ${item.source}</div>
+                        <div class="source">Source: ${item.source}</div>
                     </div>
-                    
+                </div>
+                
+                <div>
                     <div class="buttons">
-                        <button class="btn btn-interested" onclick="markInterested('${item.id}', this)">🔖 Interested</button>
-                        <button class="btn btn-informative" onclick="rate('${item.id}', 'informative')">✅ Informative</button>
-                        <button class="btn btn-not-useful" onclick="rate('${item.id}', 'not_useful')">❌ Not Useful</button>
+                        <button class="btn btn-interested" onclick="markInterested('${item.id}', '${item.type}', '${item.perspective}', this)">
+                            🔖 Interested
+                        </button>
+                        <button class="btn btn-informative" onclick="rateContent('${item.id}', 'informative', '${item.type}', '${item.perspective}')">
+                            ✅ Informative
+                        </button>
+                        <button class="btn btn-not-useful" onclick="rateContent('${item.id}', 'not_useful', '${item.type}', '${item.perspective}')">
+                            ❌ Not Useful
+                        </button>
                     </div>
-                `;
-                feed.appendChild(card);
-            });
+                </div>
+            `;
+            
+            return card;
         }
         
-        function toggleExpand(btn, id) {
-            const expanded = document.getElementById(`expand-${id}`);
-            if (expanded.style.display === 'none') {
+        // Expand/collapse tracking
+        function toggleExpand(btn, contentId, type, perspective) {
+            const expanded = document.getElementById(`expand-${contentId}`);
+            const isExpanding = expanded.style.display === 'none';
+            
+            if (isExpanding) {
                 expanded.style.display = 'block';
-                btn.innerHTML = '▲ Show Less';
-                expandTimes[id] = Date.now();
+                btn.innerHTML = '▲ Collapse Analysis';
+                expandTimes[contentId] = Date.now();
+                
+                // Log expand start
+                fetch('/api/log_interaction', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        content_id: contentId,
+                        content_type: type,
+                        perspective: perspective,
+                        action: 'expand_start'
+                    })
+                });
             } else {
                 expanded.style.display = 'none';
-                btn.innerHTML = '▼ Read More';
+                btn.innerHTML = '▼ Read Full Analysis';
                 
-                if (expandTimes[id]) {
-                    const duration = Math.floor((Date.now() - expandTimes[id]) / 1000);
+                if (expandTimes[contentId]) {
+                    const duration = Math.floor((Date.now() - expandTimes[contentId]) / 1000);
+                    
                     fetch('/api/log_interaction', {
                         method: 'POST',
                         headers: {'Content-Type': 'application/json'},
                         body: JSON.stringify({
-                            content_id: id,
-                            action: 'expand',
+                            content_id: contentId,
+                            content_type: type,
+                            perspective: perspective,
+                            action: 'expand_end',
                             expand_duration: duration
                         })
                     });
-                    delete expandTimes[id];
+                    
+                    delete expandTimes[contentId];
                 }
             }
         }
         
-        function markInterested(id, btn) {
+        // Interested button
+        function markInterested(contentId, type, perspective, btn) {
             btn.classList.add('active');
             btn.textContent = '✓ Interested';
             
@@ -484,49 +712,83 @@ FEED_HTML = '''
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify({
-                    content_id: id,
+                    content_id: contentId,
+                    content_type: type,
+                    perspective: perspective,
                     action: 'interested'
                 })
             });
+            
+            alert('✅ Thanks! Your interest has been recorded.');
         }
         
-        function rate(id, rating) {
+        // Rate content
+        function rateContent(contentId, rating, type, perspective) {
             fetch('/api/log_interaction', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify({
-                    content_id: id,
+                    content_id: contentId,
+                    content_type: type,
+                    perspective: perspective,
                     action: 'rate',
                     rating: rating
                 })
             });
-            alert(rating === 'informative' ? '✅ Thanks!' : '❌ Noted');
+            
+            alert(rating === 'informative' ? '✅ Rated as informative' : '❌ Rated as not useful');
         }
         
+        // Timer and progress
         function updateTimer() {
             const elapsed = Math.floor((Date.now() - startTime) / 1000);
             const mins = Math.floor(elapsed / 60);
             const secs = elapsed % 60;
             document.getElementById('timer').textContent = `${mins.toString().padStart(2,'0')}:${secs.toString().padStart(2,'0')}`;
+            
+            // Progress toward 20 minutes (1200 seconds)
+            const progress = Math.min((elapsed / 1200) * 100, 100);
+            document.getElementById('progressFill').style.width = progress + '%';
         }
         
+        // Complete session
+        function completeSession() {
+            const elapsed = Math.floor((Date.now() - startTime) / 1000);
+            const mins = Math.floor(elapsed / 60);
+            const secs = elapsed % 60;
+            
+            if (confirm(`✅ Session complete! You spent ${mins}:${secs.toString().padStart(2,'0')} minutes. Exit?`)) {
+                window.location.href = '/';
+            }
+        }
+        
+        // Toggle theme
         async function toggleTheme() {
             const isDark = document.body.style.background === 'rgb(0, 0, 0)';
             const theme = isDark ? 'light' : 'dark';
+            
             await fetch('/api/set_theme', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify({theme: theme})
             });
+            
             location.reload();
         }
         
-        renderFeed();
-        setInterval(updateTimer, 1000);
+        // Initialize
+        document.addEventListener('DOMContentLoaded', function() {
+            renderFeed();
+            setInterval(updateTimer, 1000);
+            
+            // Log condition for admin (in console only)
+            console.log('🔬 Research condition for user', userId + ':', condition);
+        });
     </script>
 </body>
 </html>
 '''
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=10000)
+    port = int(os.environ.get('PORT', 10000))
+    app.run(host='0.0.0.0', port=port)
