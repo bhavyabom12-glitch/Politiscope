@@ -1,0 +1,8 @@
+# SSH into your Render instance
+ssh your-instance@render.com
+
+# Navigate to your app directory
+cd /opt/render/project/src
+
+# Edit the file
+nano app.py
