@@ -177,7 +177,6 @@ def feed():
     if condition == 'normal':
         # Filter bubble - weighted toward one perspective
         # For demo, randomly choose a preferred perspective
-        # In production, this would be based on user history
         perspectives = ['progressive', 'centrist', 'conservative']
         fav = random.choice(perspectives)
         
@@ -208,10 +207,9 @@ def feed():
     theme = user[0] if user else 'light'
     conn.close()
     
-    # ✅ FIXED: Pass feed_items directly, not json.dumps
     return render_template_string(FEED_HTML, 
                                  user_id=user_id, 
-                                 condition=condition,  # Still passed for admin, but hidden in UI
+                                 condition=condition,
                                  theme=theme,
                                  feed_items=feed_items)
 
@@ -348,12 +346,20 @@ FEED_HTML = '''
             transition: all 0.3s;
         }
         .header {
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            background: {{ '#000' if theme == 'dark' else '#f5f5f5' }};
+            padding: 15px 0;
+            margin-bottom: 20px;
+            border-bottom: 1px solid {{ '#333' if theme == 'dark' else '#ddd' }};
+        }
+        .header-content {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 30px;
-            padding-bottom: 20px;
-            border-bottom: 1px solid {{ '#333' if theme == 'dark' else '#ddd' }};
+            max-width: 600px;
+            margin: 0 auto;
         }
         .user-info {
             display: flex;
@@ -366,16 +372,44 @@ FEED_HTML = '''
             padding: 8px 15px;
             border-radius: 20px;
         }
-        /* ✅ CONDITION HIDDEN FROM USERS - only visible in admin view */
-        .admin-badge {
-            display: none;
+        .timer-container {
+            text-align: center;
+            background: {{ '#1a1a1a' if theme == 'dark' else 'white' }};
+            border-radius: 15px;
+            padding: 15px;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 12px {{ 'rgba(0,0,0,0.3)' if theme == 'dark' else 'rgba(0,0,0,0.1)' }};
         }
-        .timer {
-            background: {{ 'rgba(255,255,255,0.1)' if theme == 'dark' else '#f0f0f0' }};
-            padding: 8px 15px;
-            border-radius: 20px;
+        .timer-display {
+            font-size: 3em;
             font-family: monospace;
-            font-size: 1.1em;
+            font-weight: bold;
+            color: #667eea;
+            margin: 10px 0;
+        }
+        .timer-label {
+            font-size: 0.9em;
+            color: #888;
+            margin-bottom: 5px;
+        }
+        .target-time {
+            font-size: 0.9em;
+            color: #888;
+            margin-top: 5px;
+        }
+        .progress-bar {
+            width: 100%;
+            height: 8px;
+            background: {{ '#333' if theme == 'dark' else '#e0e0e0' }};
+            border-radius: 4px;
+            margin: 15px 0;
+            overflow: hidden;
+        }
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #ff6b6b, #4ecdc4, #45b7d1);
+            width: 0%;
+            transition: width 0.3s;
         }
         .feed-container {
             max-width: 600px;
@@ -512,33 +546,26 @@ FEED_HTML = '''
             background: #c0392b;
             color: white;
         }
-        .progress-bar {
-            width: 100%;
-            height: 4px;
-            background: {{ '#333' if theme == 'dark' else '#e0e0e0' }};
-            border-radius: 2px;
-            margin: 20px 0;
-            overflow: hidden;
-        }
-        .progress-fill {
-            height: 100%;
-            background: linear-gradient(90deg, #ff6b6b, #4ecdc4, #45b7d1);
-            width: 0%;
-            transition: width 0.3s;
-        }
     </style>
 </head>
 <body>
     <div class="header">
-        <div class="user-info">
-            <span class="user-id">{{ user_id }}</span>
-            <!-- ✅ CONDITION COMPLETELY HIDDEN - only in server logs -->
+        <div class="header-content">
+            <div class="user-info">
+                <span class="user-id">{{ user_id }}</span>
+            </div>
+            <div class="timer" id="timer">00:00</div>
         </div>
-        <div class="timer" id="timer">00:00</div>
     </div>
     
-    <div class="progress-bar">
-        <div class="progress-fill" id="progressFill"></div>
+    <!-- PROMINENT 20-MINUTE TIMER DISPLAY -->
+    <div class="timer-container">
+        <div class="timer-label">⏱️ TODAY'S SESSION</div>
+        <div class="timer-display" id="bigTimer">00:00</div>
+        <div class="progress-bar">
+            <div class="progress-fill" id="progressFill"></div>
+        </div>
+        <div class="target-time">Target: 20 minutes • You can stay longer or leave anytime</div>
     </div>
     
     <div class="feed-container" id="feed"></div>
@@ -547,21 +574,20 @@ FEED_HTML = '''
         {{ '☀️ Light' if theme == 'dark' else '🌙 Dark' }}
     </button>
     
-    <button class="exit-btn" onclick="window.location.href='/'">✕ Exit</button>
+    <button class="exit-btn" onclick="exitSession()">✕ Exit</button>
     
     <script>
         const userId = '{{ user_id }}';
-        // ✅ CONDITION PASSED BUT NOT DISPLAYED - available for admin/research
         const condition = '{{ condition }}';
         const feedItems = {{ feed_items | tojson }};
-        
-        console.log('Feed items:', feedItems.length); // Debug - remove in production
-        console.log('Condition:', condition); // Only visible in console, not UI
         
         let startTime = Date.now();
         let expandTimes = {};
         let cardStartTimes = {};
         let currentInteractions = [];
+        
+        console.log('🔬 Research condition for user', userId + ':', condition);
+        console.log('Feed loaded with', feedItems.length, 'items');
         
         // Render feed
         function renderFeed() {
@@ -579,20 +605,6 @@ FEED_HTML = '''
                 const card = createCard(item, index);
                 feed.appendChild(card);
             });
-            
-            // Add completion card
-            const completionCard = document.createElement('div');
-            completionCard.className = 'content-card';
-            completionCard.style.textAlign = 'center';
-            completionCard.style.justifyContent = 'center';
-            completionCard.innerHTML = `
-                <div style="padding: 40px 20px;">
-                    <h2 style="font-size: 2em; margin-bottom: 20px;">✓ Session Complete</h2>
-                    <p style="margin-bottom: 20px;">You've viewed ${feedItems.length} pieces of content.</p>
-                    <button class="btn btn-informative" onclick="completeSession()" style="padding: 15px 40px; font-size: 1.2em;">Complete & Exit</button>
-                </div>
-            `;
-            feed.appendChild(completionCard);
             
             // Start timer for first card
             if (feedItems.length > 0) {
@@ -668,7 +680,6 @@ FEED_HTML = '''
                 btn.innerHTML = '▲ Collapse Analysis';
                 expandTimes[contentId] = Date.now();
                 
-                // Log expand start
                 fetch('/api/log_interaction', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
@@ -739,25 +750,29 @@ FEED_HTML = '''
             alert(rating === 'informative' ? '✅ Rated as informative' : '❌ Rated as not useful');
         }
         
-        // Timer and progress
+        // Timer and progress - UPDATED with big display
         function updateTimer() {
             const elapsed = Math.floor((Date.now() - startTime) / 1000);
             const mins = Math.floor(elapsed / 60);
             const secs = elapsed % 60;
-            document.getElementById('timer').textContent = `${mins.toString().padStart(2,'0')}:${secs.toString().padStart(2,'0')}`;
+            const timeString = `${mins.toString().padStart(2,'0')}:${secs.toString().padStart(2,'0')}`;
+            
+            // Update both timers
+            document.getElementById('timer').textContent = timeString;
+            document.getElementById('bigTimer').textContent = timeString;
             
             // Progress toward 20 minutes (1200 seconds)
             const progress = Math.min((elapsed / 1200) * 100, 100);
             document.getElementById('progressFill').style.width = progress + '%';
         }
         
-        // Complete session
-        function completeSession() {
+        // Exit session - NO forced completion after 6 items
+        function exitSession() {
             const elapsed = Math.floor((Date.now() - startTime) / 1000);
             const mins = Math.floor(elapsed / 60);
             const secs = elapsed % 60;
             
-            if (confirm(`✅ Session complete! You spent ${mins}:${secs.toString().padStart(2,'0')} minutes. Exit?`)) {
+            if (confirm(`⏱️ You spent ${mins}:${secs.toString().padStart(2,'0')} minutes today.\n\nExit to homepage?`)) {
                 window.location.href = '/';
             }
         }
@@ -780,9 +795,6 @@ FEED_HTML = '''
         document.addEventListener('DOMContentLoaded', function() {
             renderFeed();
             setInterval(updateTimer, 1000);
-            
-            // Log condition for admin (in console only)
-            console.log('🔬 Research condition for user', userId + ':', condition);
         });
     </script>
 </body>
