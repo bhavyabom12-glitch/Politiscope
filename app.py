@@ -479,7 +479,7 @@ HOME_HTML = '''
 <!DOCTYPE html>
 <html>
 <head>
-    <title>PolitiScope Research</title>
+    <title>Politiscope Research Study</title>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <style>
@@ -516,12 +516,12 @@ HOME_HTML = '''
 </head>
 <body>
     <div class="container">
-        <h1>📊 PolitiScope</h1>
-        <p class="subtitle">Research Study on Political Perspectives</p>
+        <h1>📊 Politiscope </h1>
+        <p class="subtitle">A 2026 AP Research Study on Political Perspectives</p>
         
         <div class="btn-container">
-            <button class="btn" onclick="register()">🆕 New Participant</button>
-            <button class="btn btn-secondary" onclick="login()">🔑 Returning</button>
+            <button class="btn" onclick="register()">Register New Account</button>
+            <button class="btn btn-secondary" onclick="login()">Returning User</button>
         </div>
     </div>
     
@@ -1061,7 +1061,7 @@ FEED_HTML = '''
             const mins = Math.floor(elapsed / 60);
             const secs = elapsed % 60;
             
-            if (confirm(`⏱️ You spent ${mins}:${secs.toString().padStart(2,'0')} minutes today.\n\nExit to homepage?`)) {
+            if (confirm(`You spent ${mins}:${secs.toString().padStart(2,'0')} minutes today.\n\nExit to homepage?`)) {
                 window.location.href = '/';
             }
         }
