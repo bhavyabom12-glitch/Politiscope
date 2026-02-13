@@ -31,10 +31,12 @@ def init_database():
 
 init_database()
 
-# ==================== CONTENT DATABASE ====================
+# ==================== EXPANDED CONTENT DATABASE ====================
+# 24 pieces of content (8 per perspective)
 CONTENT = [
+    # PROGRESSIVE (8 items)
     {
-        "id": "1", "type": "article", "perspective": "progressive",
+        "id": "p1", "type": "article", "perspective": "progressive",
         "title": "Medicare for All Explained",
         "summary": "How a single-payer system would work",
         "content": "A single-payer system would consolidate healthcare financing into one public agency. Proponents argue this reduces administrative overhead and ensures medical care as a human right regardless of income. The Congressional Budget Office estimates this would cover all Americans while eliminating premiums and deductibles.",
@@ -43,25 +45,7 @@ CONTENT = [
         "image_url": "https://images.unsplash.com/photo-1505751172177-51ad18e739da?w=800"
     },
     {
-        "id": "2", "type": "article", "perspective": "conservative",
-        "title": "Market-Based Healthcare Reform",
-        "summary": "Competition and choice drive quality",
-        "content": "Market-based reforms focus on deregulation and increasing competition between private insurers. This approach aims to lower costs through innovation, price transparency, and personal health savings accounts. Health Savings Accounts now cover over 30 million Americans.",
-        "facts": ["$450B estimated savings", "Expands Health Savings Accounts", "HSAs cover 30M+ users"],
-        "source": "Heritage Foundation", "duration": 30,
-        "image_url": "https://images.unsplash.com/photo-1454165833006-cc331c71dd62?w=800"
-    },
-    {
-        "id": "3", "type": "article", "perspective": "centrist",
-        "title": "The Public Option Compromise",
-        "summary": "Middle ground on healthcare",
-        "content": "A public option would create a government-run insurance plan that competes with private insurers, giving consumers choice while expanding coverage. This compromise aims to achieve near-universal coverage without completely displacing the private market.",
-        "facts": ["$1.5T cost estimate", "88% coverage target", "Preserves private insurance option"],
-        "source": "Brookings Institute", "duration": 25,
-        "image_url": "https://images.unsplash.com/photo-1576091160550-2173dba999ef?w=800"
-    },
-    {
-        "id": "4", "type": "article", "perspective": "progressive",
+        "id": "p2", "type": "video", "perspective": "progressive",
         "title": "Green New Deal Overview",
         "summary": "Climate action and jobs",
         "content": "This resolution calls for a 10-year national mobilization to achieve 100% clean energy by 2035, create 10 million jobs, and guarantee economic security for all Americans. Includes massive investments in wind, solar, and battery storage.",
@@ -70,22 +54,206 @@ CONTENT = [
         "image_url": "https://images.unsplash.com/photo-1466611653911-954815391f27?w=800"
     },
     {
-        "id": "5", "type": "article", "perspective": "conservative",
+        "id": "p3", "type": "article", "perspective": "progressive",
+        "title": "Wealth Tax Proposal",
+        "summary": "Taxing extreme wealth",
+        "content": "The wealth tax would apply an annual 2% tax on net worth above $50 million. Proponents estimate this could raise $3 trillion over a decade from just the top 0.1% of households. The policy aims to address growing wealth concentration and fund social programs.",
+        "facts": ["Top 0.1% affected", "$3T revenue estimate", "Closes loopholes"],
+        "source": "ProPublica", "duration": 40,
+        "image_url": "https://images.unsplash.com/photo-1565379488613-5850c844ef58?w=800"
+    },
+    {
+        "id": "p4", "type": "infographic", "perspective": "progressive",
+        "title": "Pathway to Citizenship",
+        "summary": "Immigration reform proposal",
+        "content": "The proposal would create an 8-year pathway to citizenship for approximately 11 million undocumented immigrants, with special provisions for 3.6 million Dreamers brought to the country as children. Economic analysis suggests this would add $1.2 trillion to GDP over the next decade.",
+        "facts": ["Affects 11M people", "+$1.2T to GDP", "3.6M Dreamers eligible"],
+        "source": "Center for American Progress", "duration": 55,
+        "image_url": "https://images.unsplash.com/photo-1501901609772-df0848060b33?w=800"
+    },
+    {
+        "id": "p5", "type": "article", "perspective": "progressive",
+        "title": "Student Debt Forgiveness",
+        "summary": "Economic relief for borrowers",
+        "content": "Proposals to cancel student debt range from $10,000 to $50,000 per borrower. Supporters argue this would boost the economy by allowing younger generations to buy homes and start businesses. Critics worry about the cost and fairness to those who already paid.",
+        "facts": ["45M borrowers", "$1.7T total debt", "Average debt: $37K"],
+        "source": "Education Data Initiative", "duration": 35,
+        "image_url": "https://images.unsplash.com/photo-1523050854058-8df90110c9f1?w=800"
+    },
+    {
+        "id": "p6", "type": "video", "perspective": "progressive",
+        "title": "Paid Family Leave",
+        "summary": "Support for working families",
+        "content": "The FAMILY Act would create a national paid family and medical leave program, providing up to 12 weeks of partial income. The US is one of the few countries without federal paid leave. Studies show benefits for child development and maternal health.",
+        "facts": ["12 weeks leave", "66% wage replacement", "Covers 100M workers"],
+        "source": "Department of Labor", "duration": 40,
+        "image_url": "https://images.unsplash.com/photo-1544027993-37dbfe4430b7?w=800"
+    },
+    {
+        "id": "p7", "type": "article", "perspective": "progressive",
+        "title": "Voting Rights Act",
+        "summary": "Protecting democracy",
+        "content": "The John Lewis Voting Rights Act would restore key provisions of the 1965 Voting Rights Act, requiring federal approval for voting changes in states with histories of discrimination. Supporters say it's needed to combat voter suppression.",
+        "facts": ["Restores Section 5", "Covers 9 states", "Bipartisan support in 2006"],
+        "source": "Brennan Center", "duration": 30,
+        "image_url": "https://images.unsplash.com/photo-1540910419892-4a36d2c3266c?w=800"
+    },
+    {
+        "id": "p8", "type": "infographic", "perspective": "progressive",
+        "title": "Minimum Wage Increase",
+        "summary": "$15 by 2025",
+        "content": "The Raise the Wage Act would gradually increase the federal minimum wage to $15 per hour by 2025. The current $7.25 rate hasn't increased since 2009. Studies show mixed effects on employment but significant poverty reduction.",
+        "facts": ["27M workers affected", "Lifts 900K from poverty", "$15 by 2025"],
+        "source": "Economic Policy Institute", "duration": 25,
+        "image_url": "https://images.unsplash.com/photo-1554224154-26032ffc0d07?w=800"
+    },
+    
+    # CENTRIST (8 items)
+    {
+        "id": "c1", "type": "article", "perspective": "centrist",
+        "title": "The Public Option Compromise",
+        "summary": "Middle ground on healthcare",
+        "content": "A public option would create a government-run insurance plan that competes with private insurers, giving consumers choice while expanding coverage. This compromise aims to achieve near-universal coverage without completely displacing the private market.",
+        "facts": ["$1.5T cost estimate", "88% coverage target", "Preserves private insurance option"],
+        "source": "Brookings Institute", "duration": 25,
+        "image_url": "https://images.unsplash.com/photo-1576091160550-2173dba999ef?w=800"
+    },
+    {
+        "id": "c2", "type": "infographic", "perspective": "centrist",
+        "title": "Climate Resilience Plan",
+        "summary": "Balanced climate policy",
+        "content": "This middle-ground approach pairs carbon pricing with investments in climate adaptation infrastructure. The plan would set a 2050 net-zero target while providing funding for coastal resilience and flood control. Carbon pricing would start low and gradually increase.",
+        "facts": ["$300B for infrastructure", "Carbon pricing included", "2050 net-zero target"],
+        "source": "BPC Analysis", "duration": 35,
+        "image_url": "https://images.unsplash.com/photo-1470071459604-3b5ec3a7fe05?w=800"
+    },
+    {
+        "id": "c3", "type": "article", "perspective": "centrist",
+        "title": "Balanced Budget Plan",
+        "summary": "Fiscal responsibility",
+        "content": "This plan combines targeted spending cuts with revenue increases to stabilize the debt-to-GDP ratio over a 10-year window. Includes Medicare drug price negotiation, a 28% corporate rate, and caps on discretionary spending.",
+        "facts": ["10-year timeline", "Spending cuts + revenue", "Debt stabilization"],
+        "source": "CRFB Report", "duration": 40,
+        "image_url": "https://images.unsplash.com/photo-1543286386-2e659306cd6c?w=800"
+    },
+    {
+        "id": "c4", "type": "video", "perspective": "centrist",
+        "title": "Bipartisan Immigration Deal",
+        "summary": "Compromise on immigration",
+        "content": "The compromise pairs $20 billion in border security funding with a 5-year pathway to citizenship for approximately 2 million Dreamers. It would also create a new visa program for essential workers and modernize the legal immigration system.",
+        "facts": ["$20B for security", "2M Dreamers covered", "5-year pathway"],
+        "source": "Bipartisan Policy Center", "duration": 45,
+        "image_url": "https://images.unsplash.com/photo-1581291518633-83b4ebd1d83e?w=800"
+    },
+    {
+        "id": "c5", "type": "article", "perspective": "centrist",
+        "title": "Infrastructure Investment",
+        "summary": "Bipartisan infrastructure deal",
+        "content": "The $1.2 trillion infrastructure bill funds roads, bridges, public transit, rail, broadband, and water systems. It represents a compromise between progressive spending goals and conservative fiscal concerns.",
+        "facts": ["$1.2T total", "$550B new spending", "5-year plan"],
+        "source": "Congressional Budget Office", "duration": 30,
+        "image_url": "https://images.unsplash.com/photo-1513828583688-c52646db42da?w=800"
+    },
+    {
+        "id": "c6", "type": "infographic", "perspective": "centrist",
+        "title": "Gun Safety Compromise",
+        "summary": "Moderate gun reforms",
+        "content": "The Bipartisan Safer Communities Act enhanced background checks for buyers under 21, provided funding for red flag laws, and closed the boyfriend loophole. It represents the first major federal gun safety legislation in decades.",
+        "facts": ["Enhanced checks", "$750M for crisis intervention", "Closes dating partner loophole"],
+        "source": "Department of Justice", "duration": 25,
+        "image_url": "https://images.unsplash.com/photo-1523995462485-3d171b5c8fa9?w=800"
+    },
+    {
+        "id": "c7", "type": "article", "perspective": "centrist",
+        "title": "Electoral Count Reform",
+        "summary": "Fixing presidential election rules",
+        "content": "The Electoral Count Reform Act clarifies the vice president's role is ministerial and raises the threshold for objecting to electors. It aims to prevent future attempts to overturn election results while preserving states' roles.",
+        "facts": ["VP role clarified", "1/5 threshold for objections", "Bipartisan support"],
+        "source": "Lawfare Institute", "duration": 35,
+        "image_url": "https://images.unsplash.com/photo-1540910419892-4a36d2c3266c?w=800"
+    },
+    {
+        "id": "c8", "type": "video", "perspective": "centrist",
+        "title": "Tech Regulation",
+        "summary": "Balancing innovation and privacy",
+        "content": "Proposals for tech regulation aim to balance innovation with consumer protection. Ideas include federal privacy laws, Section 230 reforms, and antitrust enforcement. The challenge is maintaining US tech leadership while addressing concerns.",
+        "facts": ["No federal privacy law", "Section 230 under review", "Big tech antitrust cases"],
+        "source": "Brookings Tech", "duration": 40,
+        "image_url": "https://images.unsplash.com/photo-1519389950473-47ba0277781c?w=800"
+    },
+    
+    # CONSERVATIVE (8 items)
+    {
+        "id": "r1", "type": "article", "perspective": "conservative",
+        "title": "Market-Based Healthcare Reform",
+        "summary": "Competition and choice drive quality",
+        "content": "Market-based reforms focus on deregulation and increasing competition between private insurers. This approach aims to lower costs through innovation, price transparency, and personal health savings accounts. Health Savings Accounts now cover over 30 million Americans.",
+        "facts": ["$450B estimated savings", "Expands Health Savings Accounts", "HSAs cover 30M+ users"],
+        "source": "Heritage Foundation", "duration": 30,
+        "image_url": "https://images.unsplash.com/photo-1454165833006-cc331c71dd62?w=800"
+    },
+    {
+        "id": "r2", "type": "article", "perspective": "conservative",
         "title": "Energy Innovation Approach",
         "summary": "Technology over regulation",
-        "content": "This approach prioritizes technological innovation over government mandates, funding research into carbon capture, advanced nuclear reactors, and next-generation solar. The strategy includes tax credits for clean energy innovation.",
+        "content": "This approach prioritizes technological innovation over government mandates, funding research into carbon capture, advanced nuclear reactors, and next-generation solar. The strategy includes tax credits for clean energy innovation and streamlining regulations for nuclear plant construction.",
         "facts": ["$500M for carbon capture", "Nuclear expansion", "R&D tax credits"],
         "source": "AEI Report", "duration": 30,
         "image_url": "https://images.unsplash.com/photo-1513828583688-c52646db42da?w=800"
     },
     {
-        "id": "6", "type": "article", "perspective": "centrist",
-        "title": "Climate Resilience Plan",
-        "summary": "Balanced climate policy",
-        "content": "This middle-ground approach pairs carbon pricing with investments in climate adaptation infrastructure. The plan would set a 2050 net-zero target while providing funding for coastal resilience and flood control.",
-        "facts": ["$300B for infrastructure", "Carbon pricing included", "2050 net-zero target"],
-        "source": "BPC Analysis", "duration": 35,
-        "image_url": "https://images.unsplash.com/photo-1470071459604-3b5ec3a7fe05?w=800"
+        "id": "r3", "type": "infographic", "perspective": "conservative",
+        "title": "Tax Cuts & Growth",
+        "summary": "Supply-side economics",
+        "content": "The Tax Cuts and Jobs Act of 2017 lowered the corporate rate from 35% to 21%. Supporters credit this with increasing business investment and job creation. Treasury analysis showed repatriation of over $1 trillion in overseas profits following the reform.",
+        "facts": ["21% corporate rate", "Job growth focus", "Deregulation agenda"],
+        "source": "Tax Foundation", "duration": 35,
+        "image_url": "https://images.unsplash.com/photo-1554224155-6726b3ff858f?w=800"
+    },
+    {
+        "id": "r4", "type": "video", "perspective": "conservative",
+        "title": "Border Security First",
+        "summary": "Secure borders before reform",
+        "content": "This approach insists that border security must be achieved before any legalization program begins. Current proposals include hiring 20,000 additional border patrol agents, completing 500 miles of physical barriers, and implementing mandatory E-Verify nationwide.",
+        "facts": ["1.7M 2023 encounters", "20K more agents proposed", "Technology upgrades funded"],
+        "source": "DHS Report", "duration": 40,
+        "image_url": "https://images.unsplash.com/photo-1444210971048-6130cf0c46cf?w=800"
+    },
+    {
+        "id": "r5", "type": "article", "perspective": "conservative",
+        "title": "School Choice",
+        "summary": "Education freedom",
+        "content": "School choice programs allow parents to use public education funds for private schools, charter schools, or homeschooling. Supporters argue competition improves education quality. Opponents worry about draining resources from public schools.",
+        "facts": ["32 states have choice programs", "700K voucher students", "Avg voucher: $4,900"],
+        "source": "EdChoice", "duration": 30,
+        "image_url": "https://images.unsplash.com/photo-1523050854058-8df90110c9f1?w=800"
+    },
+    {
+        "id": "r6", "type": "infographic", "perspective": "conservative",
+        "title": "Second Amendment Rights",
+        "summary": "Constitutional carry and self-defense",
+        "content": "Constitutional carry laws allow citizens to carry concealed firearms without a permit. Currently 27 states have permitless carry. Supporters cite self-defense rights and the Second Amendment. Opponents point to public safety concerns.",
+        "facts": ["27 states constitutional carry", "22M NICS checks (2023)", "Self-defense use: 500K/year"],
+        "source": "NRA-ILA", "duration": 25,
+        "image_url": "https://images.unsplash.com/photo-1523995462485-3d171b5c8fa9?w=800"
+    },
+    {
+        "id": "r7", "type": "article", "perspective": "conservative",
+        "title": "Federalism and States' Rights",
+        "summary": "Limiting federal power",
+        "content": "The principle of federalism reserves powers not delegated to the federal government to the states. Recent Supreme Court cases have reinforced state authority on issues from abortion to environmental regulation. This allows policy experimentation at the state level.",
+        "facts": ["10th Amendment", "Federal vs state powers", "Laboratory of democracy"],
+        "source": "Federalist Society", "duration": 35,
+        "image_url": "https://images.unsplash.com/photo-1589829545856-d10d557cf95f?w=800"
+    },
+    {
+        "id": "r8", "type": "video", "perspective": "conservative",
+        "title": "Free Speech on Campus",
+        "summary": "Protecting academic freedom",
+        "content": "Concerns about free speech on college campuses have led to legislative efforts to protect diverse viewpoints. Proponents argue intellectual diversity is essential for education. Critics worry about protecting hate speech and harassment.",
+        "facts": ["36 states considering campus speech bills", "First Amendment protections", "Viewpoint diversity"],
+        "source": "FIRE", "duration": 40,
+        "image_url": "https://images.unsplash.com/photo-1524995997946-a1c2e315a42f?w=800"
     }
 ]
 
@@ -102,6 +270,47 @@ def login_required(f):
             return redirect(url_for('home'))
         return f(*args, **kwargs)
     return decorated_function
+
+def generate_content_batch(condition, user_id, count=5):
+    """Generate a batch of content based on condition and user history"""
+    if condition == 'normal':
+        # FILTER BUBBLE: Weight toward preferred perspective
+        # Get user's interaction history
+        conn = get_db()
+        c = conn.cursor()
+        c.execute('''SELECT perspective, COUNT(*) as cnt 
+                     FROM interactions 
+                     WHERE user_id = ? AND action IN ('view', 'interested', 'rate_informative')
+                     GROUP BY perspective''', (user_id,))
+        history = {row[0]: row[1] for row in c.fetchall()}
+        conn.close()
+        
+        # If no history, start with random preference
+        if not history:
+            fav = random.choice(['progressive', 'centrist', 'conservative'])
+        else:
+            fav = max(history, key=history.get)
+        
+        # 70% from favorite perspective, 30% random
+        batch = []
+        for i in range(count):
+            if i < int(count * 0.7):  # 70% favorite
+                fav_items = [c for c in CONTENT if c['perspective'] == fav]
+                batch.append(random.choice(fav_items))
+            else:  # 30% other perspectives
+                other_items = [c for c in CONTENT if c['perspective'] != fav]
+                batch.append(random.choice(other_items))
+    else:
+        # DIVERSE: Balanced perspectives
+        perspectives = ['progressive', 'centrist', 'conservative']
+        batch = []
+        for i in range(count):
+            p = random.choice(perspectives)
+            items = [c for c in CONTENT if c['perspective'] == p]
+            batch.append(random.choice(items))
+    
+    random.shuffle(batch)
+    return batch
 
 # ==================== ROUTES ====================
 @app.route('/')
@@ -173,31 +382,8 @@ def feed():
     user_id = session['user_id']
     condition = session['condition']
     
-    # Generate feed based on condition
-    if condition == 'normal':
-        # Filter bubble - weighted toward one perspective
-        # For demo, randomly choose a preferred perspective
-        perspectives = ['progressive', 'centrist', 'conservative']
-        fav = random.choice(perspectives)
-        
-        # Get items from favorite perspective (4 items)
-        fav_items = [c for c in CONTENT if c['perspective'] == fav]
-        if len(fav_items) < 4:
-            fav_items = fav_items * (4 // len(fav_items) + 1)
-        feed_items = fav_items[:4]
-        
-        # Add 2 items from other perspectives
-        other_items = [c for c in CONTENT if c['perspective'] != fav]
-        feed_items += random.sample(other_items, 2)
-    else:
-        # Diverse - balanced perspectives
-        perspectives = ['progressive', 'centrist', 'conservative']
-        feed_items = []
-        for p in perspectives:
-            items = [c for c in CONTENT if c['perspective'] == p]
-            feed_items.extend(items[:2])  # 2 from each
-    
-    random.shuffle(feed_items)
+    # Get initial batch
+    initial_batch = generate_content_batch(condition, user_id, 5)
     
     # Get user theme
     conn = get_db()
@@ -211,7 +397,48 @@ def feed():
                                  user_id=user_id, 
                                  condition=condition,
                                  theme=theme,
-                                 feed_items=feed_items)
+                                 initial_batch=json.dumps([{
+                                     'id': item['id'],
+                                     'type': item['type'],
+                                     'perspective': item['perspective'],
+                                     'title': item['title'],
+                                     'summary': item['summary'],
+                                     'content': item['content'],
+                                     'facts': item['facts'],
+                                     'source': item['source'],
+                                     'duration': item['duration'],
+                                     'image_url': item['image_url']
+                                 } for item in initial_batch]))
+
+@app.route('/api/load_more', methods=['POST'])
+@login_required
+def load_more():
+    """API endpoint to load more content (infinite scroll)"""
+    data = request.json
+    user_id = session['user_id']
+    condition = session['condition']
+    current_ids = data.get('current_ids', [])
+    
+    # Generate new batch
+    new_batch = generate_content_batch(condition, user_id, 3)
+    
+    # Filter out duplicates (though our generator should handle this)
+    new_items = [item for item in new_batch if item['id'] not in current_ids]
+    
+    return jsonify({
+        'items': [{
+            'id': item['id'],
+            'type': item['type'],
+            'perspective': item['perspective'],
+            'title': item['title'],
+            'summary': item['summary'],
+            'content': item['content'],
+            'facts': item['facts'],
+            'source': item['source'],
+            'duration': item['duration'],
+            'image_url': item['image_url']
+        } for item in new_items]
+    })
 
 @app.route('/api/log_interaction', methods=['POST'])
 @login_required
@@ -546,6 +773,16 @@ FEED_HTML = '''
             background: #c0392b;
             color: white;
         }
+        .loading {
+            text-align: center;
+            padding: 20px;
+            color: #888;
+        }
+        .infinite-scroll-trigger {
+            height: 20px;
+            margin: 20px 0;
+            text-align: center;
+        }
     </style>
 </head>
 <body>
@@ -565,10 +802,12 @@ FEED_HTML = '''
         <div class="progress-bar">
             <div class="progress-fill" id="progressFill"></div>
         </div>
-        <div class="target-time">Target: 20 minutes • You can stay longer or leave anytime</div>
+        <div class="target-time">Target: 20 minutes • Scroll for endless content</div>
     </div>
     
     <div class="feed-container" id="feed"></div>
+    <div class="infinite-scroll-trigger" id="scrollTrigger"></div>
+    <div class="loading" id="loading" style="display: none;">Loading more content...</div>
     
     <button class="theme-toggle" onclick="toggleTheme()">
         {{ '☀️ Light' if theme == 'dark' else '🌙 Dark' }}
@@ -579,15 +818,18 @@ FEED_HTML = '''
     <script>
         const userId = '{{ user_id }}';
         const condition = '{{ condition }}';
-        const feedItems = {{ feed_items | tojson }};
+        const initialBatch = {{ initial_batch | safe }};
         
+        let allItems = [...initialBatch];
+        let loadedIds = new Set(initialBatch.map(item => item.id));
         let startTime = Date.now();
         let expandTimes = {};
         let cardStartTimes = {};
-        let currentInteractions = [];
+        let isLoading = false;
+        let hasMore = true;
         
         console.log('🔬 Research condition for user', userId + ':', condition);
-        console.log('Feed loaded with', feedItems.length, 'items');
+        console.log('Initial feed loaded with', allItems.length, 'items');
         
         // Render feed
         function renderFeed() {
@@ -595,21 +837,13 @@ FEED_HTML = '''
             if (!feed) return;
             
             feed.innerHTML = '';
-            
-            if (!feedItems || feedItems.length === 0) {
-                feed.innerHTML = '<div style="text-align: center; padding: 40px;">No content available</div>';
-                return;
-            }
-            
-            feedItems.forEach((item, index) => {
+            allItems.forEach((item, index) => {
                 const card = createCard(item, index);
                 feed.appendChild(card);
             });
             
-            // Start timer for first card
-            if (feedItems.length > 0) {
-                cardStartTimes[0] = Date.now();
-            }
+            // Setup intersection observer for infinite scroll
+            setupInfiniteScroll();
         }
         
         function createCard(item, index) {
@@ -618,7 +852,7 @@ FEED_HTML = '''
             card.dataset.contentId = item.id;
             card.dataset.index = index;
             
-            const typeEmoji = item.type === 'video' ? '🎬' : '📰';
+            const typeEmoji = item.type === 'video' ? '🎬' : item.type === 'article' ? '📰' : '📊';
             const perspectiveEmoji = item.perspective === 'progressive' ? '🔴' : 
                                     item.perspective === 'centrist' ? '⚪' : '🔵';
             
@@ -668,6 +902,62 @@ FEED_HTML = '''
             `;
             
             return card;
+        }
+        
+        // Infinite scroll setup
+        function setupInfiniteScroll() {
+            const observer = new IntersectionObserver((entries) => {
+                entries.forEach(entry => {
+                    if (entry.isIntersecting && !isLoading && hasMore) {
+                        loadMoreContent();
+                    }
+                });
+            });
+            
+            const trigger = document.getElementById('scrollTrigger');
+            if (trigger) {
+                observer.observe(trigger);
+            }
+        }
+        
+        // Load more content from server
+        async function loadMoreContent() {
+            if (isLoading || !hasMore) return;
+            
+            isLoading = true;
+            document.getElementById('loading').style.display = 'block';
+            
+            try {
+                const res = await fetch('/api/load_more', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        current_ids: Array.from(loadedIds)
+                    })
+                });
+                
+                const data = await res.json();
+                
+                if (data.items && data.items.length > 0) {
+                    // Add new items
+                    data.items.forEach(item => {
+                        if (!loadedIds.has(item.id)) {
+                            allItems.push(item);
+                            loadedIds.add(item.id);
+                        }
+                    });
+                    
+                    // Re-render feed with new items
+                    renderFeed();
+                } else {
+                    hasMore = false;
+                }
+            } catch (error) {
+                console.error('Error loading more content:', error);
+            } finally {
+                isLoading = false;
+                document.getElementById('loading').style.display = 'none';
+            }
         }
         
         // Expand/collapse tracking
@@ -750,14 +1040,13 @@ FEED_HTML = '''
             alert(rating === 'informative' ? '✅ Rated as informative' : '❌ Rated as not useful');
         }
         
-        // Timer and progress - UPDATED with big display
+        // Timer and progress
         function updateTimer() {
             const elapsed = Math.floor((Date.now() - startTime) / 1000);
             const mins = Math.floor(elapsed / 60);
             const secs = elapsed % 60;
             const timeString = `${mins.toString().padStart(2,'0')}:${secs.toString().padStart(2,'0')}`;
             
-            // Update both timers
             document.getElementById('timer').textContent = timeString;
             document.getElementById('bigTimer').textContent = timeString;
             
@@ -766,7 +1055,7 @@ FEED_HTML = '''
             document.getElementById('progressFill').style.width = progress + '%';
         }
         
-        // Exit session - NO forced completion after 6 items
+        // Exit session
         function exitSession() {
             const elapsed = Math.floor((Date.now() - startTime) / 1000);
             const mins = Math.floor(elapsed / 60);
