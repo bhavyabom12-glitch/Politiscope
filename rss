@@ -1,20 +1,33 @@
+# Install first: pip install langchain-community feedparser newspaper3k
+
 from langchain_community.document_loaders import RSSFeedLoader
-import feedparser
 
-# Your RSS feeds list
-RSS_URLS = [
-    "https://feeds.npr.org/1001/rss.xml",  # NPR News
-    "https://moxie.foxnews.com/feedburner/politics.xml",  # Fox News
-    "https://feeds.reuters.com/news/politics",  # Reuters
-    # ... add all your feeds here
-]
-
-# Initialize loader
-loader = RSSFeedLoader(urls=RSS_URLS)
-
-# Load articles (this handles fetching and parsing)
-documents = loader.load()
-
-# Each document has:
-# - page_content: The full article text
-# - metadata: Contains title, source, publish date, etc.
+def fetch_with_langchain():
+    """Use LangChain to fetch and parse RSS feeds"""
+    
+    # Your RSS URLs (from your existing RSS_FEEDS config)
+    all_urls = []
+    for perspective, feeds in RSS_FEEDS.items():
+        for feed in feeds:
+            all_urls.append(feed['feed_url'])
+    
+    # Initialize loader (with NLP enabled for better content)
+    loader = RSSFeedLoader(urls=all_urls, nlp=True)
+    
+    # Load everything
+    documents = loader.load()
+    
+    # Convert to your database format
+    articles = []
+    for doc in documents:
+        articles.append({
+            'title': doc.metadata.get('title', ''),
+            'summary': doc.metadata.get('summary', doc.page_content[:300]),
+            'content': doc.page_content,
+            'link': doc.metadata.get('link', ''),
+            'published': doc.metadata.get('publish_date'),
+            'source': doc.metadata.get('source', ''),
+            'keywords': doc.metadata.get('keywords', [])
+        })
+    
+    return articles
