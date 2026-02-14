@@ -1,0 +1,20 @@
+from langchain_community.document_loaders import RSSFeedLoader
+import feedparser
+
+# Your RSS feeds list
+RSS_URLS = [
+    "https://feeds.npr.org/1001/rss.xml",  # NPR News
+    "https://moxie.foxnews.com/feedburner/politics.xml",  # Fox News
+    "https://feeds.reuters.com/news/politics",  # Reuters
+    # ... add all your feeds here
+]
+
+# Initialize loader
+loader = RSSFeedLoader(urls=RSS_URLS)
+
+# Load articles (this handles fetching and parsing)
+documents = loader.load()
+
+# Each document has:
+# - page_content: The full article text
+# - metadata: Contains title, source, publish date, etc.
