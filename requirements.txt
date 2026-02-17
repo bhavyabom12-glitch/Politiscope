@@ -1,6 +1,8 @@
 Flask==2.3.3
 gunicorn==21.2.0
-langchain-community==0.0.10
 feedparser==6.0.10
 newspaper3k==0.2.8
-listparser==0.19
+beautifulsoup4==4.12.2
+requests==2.31.0
+lxml==4.9.3
+google-api-python-client==2.108.0
