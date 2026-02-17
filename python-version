@@ -1,0 +1,4 @@
+echo "3.11.0" > .python-version
+git add .python-version
+git commit -m "Pin Python version to 3.11.0"
+git push
