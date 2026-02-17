@@ -2,97 +2,132 @@ import os
 import random
 import sqlite3
 import json
+import requests
+import feedparser
 from datetime import datetime, timedelta
 from flask import Flask, request, jsonify, render_template_string, session, redirect, url_for
 from functools import wraps
 import time
-
-# LangChain imports
-from langchain_community.document_loaders import RSSFeedLoader
+from googleapiclient.discovery import build
+from newspaper import Article
+import re
 
 app = Flask(__name__)
 app.secret_key = 'politiscope-secret-key-change-this'
 application = app
 
-# ==================== RSS FEEDS CONFIGURATION ====================
-# Organized by political perspective
-RSS_FEEDS = {
+# ==================== API KEYS ====================
+YOUTUBE_API_KEY = os.getenv('YOUTUBE_API_KEY', '')  # Get from Google Cloud Console
+if not YOUTUBE_API_KEY:
+    print("⚠️  WARNING: Set YOUTUBE_API_KEY in environment variables")
+
+# ==================== CONTENT SOURCES ====================
+# Real video sources (YouTube channels)
+VIDEO_SOURCES = {
     'progressive': [
         {
-            'name': 'NPR News',
-            'feed_url': 'https://feeds.npr.org/1001/rss.xml',
-            'website': 'https://npr.org',
-            'category': 'general'
-        },
-        {
-            'name': 'The Guardian US',
-            'feed_url': 'https://www.theguardian.com/world/usa/rss',
-            'website': 'https://theguardian.com/us',
-            'category': 'general'
-        },
-        {
-            'name': 'Mother Jones',
-            'feed_url': 'https://www.motherjones.com/feed/',
-            'website': 'https://motherjones.com',
-            'category': 'politics'
-        },
-        {
             'name': 'Vox',
-            'feed_url': 'https://www.vox.com/rss/index.xml',
-            'website': 'https://vox.com',
-            'category': 'politics'
+            'channel_id': 'UCLXo7UDZvByw2ixzpQCufnA',
+            'type': 'youtube'
+        },
+        {
+            'name': 'The Young Turks',
+            'channel_id': 'UC1yBKRuGpC1tSM73A0ZjYjQ',
+            'type': 'youtube'
+        },
+        {
+            'name': 'NowThis News',
+            'channel_id': 'UCjZ7Y42HUTNfQP7tA-n42Kw',
+            'type': 'youtube'
         }
     ],
     'conservative': [
         {
-            'name': 'Fox News Politics',
-            'feed_url': 'https://moxie.foxnews.com/feedburner/politics.xml',
-            'website': 'https://foxnews.com/politics',
-            'category': 'politics'
+            'name': 'Fox News',
+            'channel_id': 'UCXIJgqnII2ZOINSWNOGFThA',
+            'type': 'youtube'
         },
         {
-            'name': 'National Review',
-            'feed_url': 'https://www.nationalreview.com/feed/',
-            'website': 'https://nationalreview.com',
-            'category': 'politics'
+            'name': 'Ben Shapiro',
+            'channel_id': 'UCnQC_G5Xsjhp9fEJKuIcrSw',
+            'type': 'youtube'
         },
         {
-            'name': 'Washington Times',
-            'feed_url': 'https://www.washingtontimes.com/rss/headlines/',
-            'website': 'https://washingtontimes.com',
-            'category': 'general'
-        },
-        {
-            'name': 'Daily Wire',
-            'feed_url': 'https://www.dailywire.com/feeds/rss.xml',
-            'website': 'https://dailywire.com',
-            'category': 'politics'
+            'name': 'PragerU',
+            'channel_id': 'UCZW5lIUz93q_aZIkJPAC0IQ',
+            'type': 'youtube'
         }
     ],
     'centrist': [
         {
-            'name': 'Reuters Politics',
-            'feed_url': 'https://feeds.reuters.com/news/politics',
-            'website': 'https://reuters.com/politics',
-            'category': 'general'
+            'name': 'Associated Press',
+            'channel_id': 'UC52X5wxOL_s5yw0dQk7NtgA',
+            'type': 'youtube'
         },
         {
-            'name': 'AP Top News',
+            'name': 'Reuters',
+            'channel_id': 'UCqj8mrCv4oASRlU-o_bDkKA',
+            'type': 'youtube'
+        },
+        {
+            'name': 'BBC News',
+            'channel_id': 'UC16niRr50-MSBwiO3YDb3RA',
+            'type': 'youtube'
+        }
+    ]
+}
+
+# Long-form article sources (WordPress/Medium feeds)
+ARTICLE_SOURCES = {
+    'progressive': [
+        {
+            'name': 'The Atlantic',
+            'feed_url': 'https://www.theatlantic.com/feed/all/',
+            'type': 'wordpress'
+        },
+        {
+            'name': 'The New Yorker',
+            'feed_url': 'https://www.newyorker.com/feed/news',
+            'type': 'wordpress'
+        },
+        {
+            'name': 'Mother Jones',
+            'feed_url': 'https://www.motherjones.com/feed/',
+            'type': 'wordpress'
+        }
+    ],
+    'conservative': [
+        {
+            'name': 'National Review',
+            'feed_url': 'https://www.nationalreview.com/feed/',
+            'type': 'wordpress'
+        },
+        {
+            'name': 'The Federalist',
+            'feed_url': 'https://thefederalist.com/feed/',
+            'type': 'wordpress'
+        },
+        {
+            'name': 'Washington Examiner',
+            'feed_url': 'https://www.washingtonexaminer.com/feed',
+            'type': 'wordpress'
+        }
+    ],
+    'centrist': [
+        {
+            'name': 'Reuters',
+            'feed_url': 'https://feeds.reuters.com/news/politics',
+            'type': 'wordpress'
+        },
+        {
+            'name': 'AP News',
             'feed_url': 'https://feeds.ap.org/feeds/feed/APTopNews',
-            'website': 'https://apnews.com',
-            'category': 'general'
+            'type': 'wordpress'
         },
         {
             'name': 'The Hill',
             'feed_url': 'https://thehill.com/feed/',
-            'website': 'https://thehill.com',
-            'category': 'politics'
-        },
-        {
-            'name': 'BBC News US & Canada',
-            'feed_url': 'http://feeds.bbci.co.uk/news/world/us_and_canada/rss.xml',
-            'website': 'https://bbc.com/news',
-            'category': 'general'
+            'type': 'wordpress'
         }
     ]
 }
@@ -108,37 +143,51 @@ def init_database():
                   condition TEXT, theme TEXT DEFAULT 'light',
                   pre_test_data TEXT, post_test_data TEXT)''')
     
-    # Articles table (simplified - LangChain gives us rich metadata)
+    # Videos table (real videos)
+    c.execute('''CREATE TABLE IF NOT EXISTS videos
+                 (id INTEGER PRIMARY KEY AUTOINCREMENT,
+                  video_id TEXT UNIQUE,
+                  title TEXT,
+                  description TEXT,
+                  channel_name TEXT,
+                  channel_id TEXT,
+                  perspective TEXT,
+                  duration TEXT,
+                  view_count INTEGER,
+                  like_count INTEGER,
+                  comment_count INTEGER,
+                  published_at TIMESTAMP,
+                  thumbnail_url TEXT,
+                  embed_url TEXT,
+                  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)''')
+    
+    # Articles table (long-form articles)
     c.execute('''CREATE TABLE IF NOT EXISTS articles
                  (id INTEGER PRIMARY KEY AUTOINCREMENT,
                   guid TEXT UNIQUE,
                   title TEXT,
+                  content TEXT,  # Full article content
                   summary TEXT,
-                  content TEXT,
-                  link TEXT,
-                  image_url TEXT,
                   source_name TEXT,
                   source_url TEXT,
                   perspective TEXT,
-                  keywords TEXT,
+                  author TEXT,
                   published TIMESTAMP,
+                  image_url TEXT,
+                  word_count INTEGER,
                   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)''')
     
     # Interactions table
     c.execute('''CREATE TABLE IF NOT EXISTS interactions
                  (id INTEGER PRIMARY KEY AUTOINCREMENT,
                   user_id TEXT,
-                  article_id INTEGER,
+                  content_id INTEGER,
+                  content_type TEXT,  # 'video' or 'article'
                   timestamp TIMESTAMP,
                   action TEXT,
                   time_spent INTEGER,
                   expand_duration INTEGER,
-                  rating TEXT,
-                  FOREIGN KEY (article_id) REFERENCES articles(id))''')
-    
-    # Indexes
-    c.execute('CREATE INDEX IF NOT EXISTS idx_articles_published ON articles(published DESC)')
-    c.execute('CREATE INDEX IF NOT EXISTS idx_articles_perspective ON articles(perspective)')
+                  rating TEXT)''')
     
     conn.commit()
     conn.close()
@@ -146,268 +195,347 @@ def init_database():
 
 init_database()
 
-# ==================== LANGCHAIN RSS FETCHER ====================
-def fetch_with_langchain(max_articles_per_feed=5):
-    """Use LangChain's RSSFeedLoader to fetch and parse articles"""
-    
-    # Collect all feed URLs
-    all_urls = []
-    source_map = {}  # Map URL to source info
-    
-    for perspective, feeds in RSS_FEEDS.items():
-        for feed in feeds:
-            all_urls.append(feed['feed_url'])
-            source_map[feed['feed_url']] = {
-                'name': feed['name'],
-                'website': feed['website'],
-                'perspective': perspective,
-                'category': feed['category']
-            }
-    
-    print(f"📡 Fetching {len(all_urls)} RSS feeds with LangChain...")
+# ==================== YOUTUBE FETCHER ====================
+def fetch_youtube_videos(channel_id, max_results=10):
+    """Fetch real videos from YouTube channel"""
+    if not YOUTUBE_API_KEY:
+        return []
     
     try:
-        # Initialize LangChain loader with NLP enabled for better content
-        loader = RSSFeedLoader(
-            urls=all_urls,
-            nlp=True  # Enables keyword extraction, summarization
-        )
+        youtube = build('youtube', 'v3', developerKey=YOUTUBE_API_KEY)
         
-        # Load all documents
-        documents = loader.load()
-        print(f"✅ LangChain loaded {len(documents)} articles")
+        # Get channel's uploads playlist
+        channels_response = youtube.channels().list(
+            part='contentDetails',
+            id=channel_id
+        ).execute()
         
-        # Process documents into our database format
-        articles_to_insert = []
+        if not channels_response['items']:
+            return []
         
-        for doc in documents:
-            # Find which feed this came from
-            source_url = doc.metadata.get('source', '')
-            feed_url = None
-            
-            # Try to match source to our feeds
-            for url in all_urls:
-                if url in source_url or source_url in url:
-                    feed_url = url
-                    break
-            
-            if not feed_url:
-                # Fallback: try to guess from domain
-                import re
-                domain_match = re.search(r'https?://([^/]+)', source_url)
-                if domain_match:
-                    domain = domain_match.group(1)
-                    for url in all_urls:
-                        if domain in url:
-                            feed_url = url
-                            break
-            
-            if not feed_url:
-                # If still can't match, use first feed with matching name in metadata
-                source_name = doc.metadata.get('source', '').lower()
-                for perspective, feeds in RSS_FEEDS.items():
-                    for feed in feeds:
-                        if feed['name'].lower() in source_name:
-                            feed_url = feed['feed_url']
-                            break
-            
-            source_info = source_map.get(feed_url, {
-                'name': doc.metadata.get('source', 'Unknown'),
-                'website': doc.metadata.get('link', '').split('/')[2] if doc.metadata.get('link') else '',
-                'perspective': 'centrist',  # Default
-                'category': 'general'
-            })
-            
-            # Generate unique GUID
-            guid = doc.metadata.get('id', doc.metadata.get('link', str(hash(doc.page_content[:100]))))
-            
-            # Extract image from metadata or content
-            image_url = None
-            if 'image' in doc.metadata:
-                image_url = doc.metadata['image']
-            elif 'media' in doc.metadata:
-                image_url = doc.metadata['media']
-            
-            # Fallback to source logo
-            if not image_url and source_info['website']:
-                image_url = f"https://logo.clearbit.com/{source_info['website'].replace('https://', '').replace('http://', '').split('/')[0]}"
-            
-            # Get summary (either from metadata or create from content)
-            summary = doc.metadata.get('summary', '')
-            if not summary and doc.page_content:
-                summary = doc.page_content[:300] + '...'
-            
-            # Get keywords as JSON
-            keywords = json.dumps(doc.metadata.get('keywords', []))
-            
-            # Parse publish date
-            published = None
-            if 'publish_date' in doc.metadata:
-                published = doc.metadata['publish_date']
-            elif 'published' in doc.metadata:
-                published = doc.metadata['published']
-            
-            articles_to_insert.append((
-                guid,
-                doc.metadata.get('title', 'Untitled'),
-                summary,
-                doc.page_content,
-                doc.metadata.get('link', '#'),
-                image_url,
-                source_info['name'],
-                source_info['website'],
-                source_info['perspective'],
-                keywords,
-                published
-            ))
+        uploads_playlist_id = channels_response['items'][0]['contentDetails']['relatedPlaylists']['uploads']
         
-        return articles_to_insert
+        # Get videos from playlist
+        videos = []
+        next_page_token = None
+        
+        while len(videos) < max_results:
+            playlist_response = youtube.playlistItems().list(
+                part='snippet',
+                playlistId=uploads_playlist_id,
+                maxResults=min(50, max_results - len(videos)),
+                pageToken=next_page_token
+            ).execute()
+            
+            video_ids = [item['snippet']['resourceId']['videoId'] for item in playlist_response['items']]
+            
+            # Get video details (duration, stats)
+            if video_ids:
+                videos_response = youtube.videos().list(
+                    part='contentDetails,statistics,snippet',
+                    id=','.join(video_ids)
+                ).execute()
+                
+                for video in videos_response['items']:
+                    videos.append({
+                        'video_id': video['id'],
+                        'title': video['snippet']['title'],
+                        'description': video['snippet']['description'],
+                        'published_at': video['snippet']['publishedAt'],
+                        'thumbnail_url': video['snippet']['thumbnails']['high']['url'],
+                        'duration': video['contentDetails']['duration'],
+                        'view_count': int(video['statistics'].get('viewCount', 0)),
+                        'like_count': int(video['statistics'].get('likeCount', 0)),
+                        'comment_count': int(video['statistics'].get('commentCount', 0)),
+                        'embed_url': f"https://www.youtube.com/embed/{video['id']}"
+                    })
+            
+            next_page_token = playlist_response.get('nextPageToken')
+            if not next_page_token:
+                break
+        
+        return videos[:max_results]
         
     except Exception as e:
-        print(f"❌ LangChain RSS loading error: {e}")
+        print(f"❌ YouTube API error: {e}")
         return []
 
-def store_articles(articles):
-    """Store fetched articles in database"""
-    if not articles:
-        return 0
+# ==================== ARTICLE FETCHER (with full content) ====================
+def fetch_full_article(url):
+    """Use newspaper3k to get full article content"""
+    try:
+        article = Article(url)
+        article.download()
+        article.parse()
+        article.nlp()
+        
+        return {
+            'title': article.title,
+            'content': article.text,
+            'summary': article.summary,
+            'keywords': article.keywords,
+            'authors': article.authors,
+            'publish_date': article.publish_date,
+            'top_image': article.top_image,
+            'videos': article.movies,  # Actual videos in the article
+            'word_count': len(article.text.split())
+        }
+    except Exception as e:
+        print(f"❌ Error fetching article {url}: {e}")
+        return None
+
+def fetch_articles_from_feed(feed_url, perspective, max_articles=5):
+    """Fetch articles from RSS feed and get full content"""
+    articles = []
     
+    try:
+        feed = feedparser.parse(feed_url)
+        
+        for entry in feed.entries[:max_articles]:
+            # Get full article content
+            full_article = fetch_full_article(entry.link)
+            
+            if full_article:
+                articles.append({
+                    'guid': entry.get('id', entry.link),
+                    'title': full_article['title'],
+                    'content': full_article['content'],
+                    'summary': full_article['summary'],
+                    'source_name': feed.feed.get('title', 'Unknown'),
+                    'source_url': entry.link,
+                    'perspective': perspective,
+                    'author': ', '.join(full_article['authors']),
+                    'published': full_article['publish_date'],
+                    'image_url': full_article['top_image'],
+                    'word_count': full_article['word_count'],
+                    'keywords': json.dumps(full_article['keywords'])
+                })
+            
+            time.sleep(1)  # Be nice to servers
+        
+        return articles
+        
+    except Exception as e:
+        print(f"❌ Error fetching feed {feed_url}: {e}")
+        return []
+
+# ==================== CONTENT REFRESH FUNCTIONS ====================
+def refresh_video_database():
+    """Fetch latest videos from all YouTube channels"""
     conn = sqlite3.connect('politiscope.db')
     c = conn.cursor()
     
-    inserted = 0
-    for article in articles:
-        try:
-            c.execute('''INSERT OR IGNORE INTO articles 
-                       (guid, title, summary, content, link, image_url,
-                        source_name, source_url, perspective, keywords, published)
-                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''', article)
-            if c.rowcount > 0:
-                inserted += 1
-        except Exception as e:
-            print(f"Error inserting article: {e}")
+    total_added = 0
+    
+    for perspective, channels in VIDEO_SOURCES.items():
+        for channel in channels:
+            print(f"📹 Fetching videos from {channel['name']}...")
+            videos = fetch_youtube_videos(channel['channel_id'], max_results=10)
+            
+            for video in videos:
+                try:
+                    c.execute('''INSERT OR IGNORE INTO videos 
+                               (video_id, title, description, channel_name, channel_id,
+                                perspective, duration, view_count, like_count,
+                                comment_count, published_at, thumbnail_url, embed_url)
+                               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
+                            (video['video_id'], video['title'], video['description'],
+                             channel['name'], channel['channel_id'], perspective,
+                             video['duration'], video['view_count'], video['like_count'],
+                             video['comment_count'], video['published_at'],
+                             video['thumbnail_url'], video['embed_url']))
+                    
+                    if c.rowcount > 0:
+                        total_added += 1
+                        
+                except Exception as e:
+                    print(f"Error storing video {video['video_id']}: {e}")
+            
+            time.sleep(1)  # YouTube API rate limits
     
     conn.commit()
     conn.close()
-    return inserted
+    print(f"✅ Added {total_added} new videos")
+    return total_added
 
 def refresh_article_database():
-    """Main function to refresh articles from RSS feeds"""
-    print("🔄 Starting RSS feed refresh...")
-    articles = fetch_with_langchain()
-    if articles:
-        count = store_articles(articles)
-        print(f"✅ Stored {count} new articles")
-        return count
-    return 0
-
-# ==================== HELPER FUNCTIONS ====================
-def get_db():
+    """Fetch latest articles from all sources with full content"""
     conn = sqlite3.connect('politiscope.db')
-    conn.row_factory = sqlite3.Row
-    return conn
+    c = conn.cursor()
+    
+    total_added = 0
+    
+    for perspective, sources in ARTICLE_SOURCES.items():
+        for source in sources:
+            print(f"📰 Fetching articles from {source['name']}...")
+            articles = fetch_articles_from_feed(source['feed_url'], perspective)
+            
+            for article in articles:
+                try:
+                    c.execute('''INSERT OR IGNORE INTO articles 
+                               (guid, title, content, summary, source_name,
+                                source_url, perspective, author, published,
+                                image_url, word_count, keywords)
+                               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
+                            (article['guid'], article['title'], article['content'],
+                             article['summary'], article['source_name'],
+                             article['source_url'], article['perspective'],
+                             article['author'], article['published'],
+                             article['image_url'], article['word_count'],
+                             article['keywords']))
+                    
+                    if c.rowcount > 0:
+                        total_added += 1
+                        
+                except Exception as e:
+                    print(f"Error storing article {article['guid']}: {e}")
+            
+            time.sleep(2)  # Be nice to servers
+    
+    conn.commit()
+    conn.close()
+    print(f"✅ Added {total_added} new articles")
+    return total_added
 
-def login_required(f):
-    @wraps(f)
-    def decorated_function(*args, **kwargs):
-        if 'user_id' not in session:
-            return redirect(url_for('home'))
-        return f(*args, **kwargs)
-    return decorated_function
-
+# ==================== CONTENT GENERATION ====================
 def get_user_preferences(user_id):
     """Get user's preferred perspective based on interactions"""
-    conn = get_db()
+    conn = sqlite3.connect('politiscope.db')
     c = conn.cursor()
     
     c.execute('''SELECT a.perspective, COUNT(*) as cnt 
                  FROM interactions i
-                 JOIN articles a ON i.article_id = a.id
+                 JOIN articles a ON i.content_id = a.id
                  WHERE i.user_id = ? AND i.action IN ('view', 'interested', 'rate_informative')
+                 AND i.content_type = 'article'
                  GROUP BY a.perspective''', (user_id,))
     
-    prefs = {row[0]: row[1] for row in c.fetchall()}
+    article_prefs = {row[0]: row[1] for row in c.fetchall()}
+    
+    c.execute('''SELECT v.perspective, COUNT(*) as cnt 
+                 FROM interactions i
+                 JOIN videos v ON i.content_id = v.id
+                 WHERE i.user_id = ? AND i.action IN ('view', 'interested', 'rate_informative')
+                 AND i.content_type = 'video'
+                 GROUP BY v.perspective''', (user_id,))
+    
+    video_prefs = {row[0]: row[1] for row in c.fetchall()}
+    
     conn.close()
     
-    return prefs
+    # Combine preferences
+    combined = {}
+    for p in ['progressive', 'centrist', 'conservative']:
+        combined[p] = article_prefs.get(p, 0) + video_prefs.get(p, 0)
+    
+    return combined
 
 def generate_content_batch(condition, user_id, limit=5, seen_ids=None):
-    """Generate batch of articles based on condition"""
+    """Generate mixed batch of videos and articles"""
     if seen_ids is None:
-        seen_ids = []
+        seen_ids = {'videos': [], 'articles': []}
     
-    conn = get_db()
+    conn = sqlite3.connect('politiscope.db')
     c = conn.cursor()
     
-    # Check if we need to refresh feeds
-    c.execute('SELECT COUNT(*) FROM articles')
-    total_articles = c.fetchone()[0]
+    # Mix videos and articles (60% articles, 40% videos)
+    article_count = int(limit * 0.6)
+    video_count = limit - article_count
     
-    if total_articles < 50:
-        # Low on articles, trigger refresh in background
-        # In production, you'd use a background task
-        refresh_article_database()
+    articles = []
+    videos = []
     
     if condition == 'normal':
-        # FILTER BUBBLE: Weight toward preferred perspective
+        # Filter bubble based on preferences
         prefs = get_user_preferences(user_id)
         
-        if not prefs:
-            # First time user - start balanced
-            perspectives = ['progressive', 'centrist', 'conservative']
+        if not prefs or sum(prefs.values()) == 0:
             weights = [1, 1, 1]
         else:
             total = sum(prefs.values())
-            # Convert counts to weights with slight randomization
             weights = [
-                prefs.get('progressive', 0) / total + random.uniform(-0.1, 0.1),
-                prefs.get('centrist', 0) / total + random.uniform(-0.1, 0.1),
-                prefs.get('conservative', 0) / total + random.uniform(-0.1, 0.1)
+                prefs.get('progressive', 0) / total,
+                prefs.get('centrist', 0) / total,
+                prefs.get('conservative', 0) / total
             ]
-            # Normalize
-            total_weight = sum(weights)
-            weights = [w/total_weight for w in weights]
         
-        # Select articles with perspective weighting
-        articles = []
-        for _ in range(limit):
-            perspective = random.choices(
-                ['progressive', 'centrist', 'conservative'],
-                weights=weights
-            )[0]
+        # Get articles with weighting
+        perspectives = ['progressive', 'centrist', 'conservative']
+        for _ in range(article_count):
+            perspective = random.choices(perspectives, weights=weights)[0]
             
-            placeholders = ','.join(['?'] * len(seen_ids)) if seen_ids else '0'
+            placeholders = ','.join(['?'] * len(seen_ids['articles'])) if seen_ids['articles'] else '0'
             c.execute(f'''SELECT * FROM articles 
                          WHERE perspective = ? AND id NOT IN ({placeholders})
                          ORDER BY RANDOM() LIMIT 1''',
-                      [perspective] + (seen_ids if seen_ids else []))
+                      [perspective] + (seen_ids['articles'] if seen_ids['articles'] else []))
             article = c.fetchone()
             
             if article:
                 articles.append(dict(article))
-                seen_ids.append(article['id'])
+                seen_ids['articles'].append(article['id'])
+        
+        # Get videos with same weighting
+        for _ in range(video_count):
+            perspective = random.choices(perspectives, weights=weights)[0]
+            
+            placeholders = ','.join(['?'] * len(seen_ids['videos'])) if seen_ids['videos'] else '0'
+            c.execute(f'''SELECT * FROM videos 
+                         WHERE perspective = ? AND id NOT IN ({placeholders})
+                         ORDER BY RANDOM() LIMIT 1''',
+                      [perspective] + (seen_ids['videos'] if seen_ids['videos'] else []))
+            video = c.fetchone()
+            
+            if video:
+                videos.append(dict(video))
+                seen_ids['videos'].append(video['id'])
     
     else:
-        # DIVERSE: Equal representation
+        # Diverse - balanced across perspectives
         perspectives = ['progressive', 'centrist', 'conservative']
-        per_perspective = limit // 3 + 1
         
+        # Get articles evenly
+        per_perspective = article_count // 3 + 1
         for perspective in perspectives:
-            placeholders = ','.join(['?'] * len(seen_ids)) if seen_ids else '0'
+            placeholders = ','.join(['?'] * len(seen_ids['articles'])) if seen_ids['articles'] else '0'
             c.execute(f'''SELECT * FROM articles 
                          WHERE perspective = ? AND id NOT IN ({placeholders})
                          ORDER BY RANDOM() LIMIT ?''',
-                      [perspective] + (seen_ids if seen_ids else []) + [per_perspective])
+                      [perspective] + (seen_ids['articles'] if seen_ids['articles'] else []) + [per_perspective])
             batch = [dict(row) for row in c.fetchall()]
             articles.extend(batch)
-            seen_ids.extend([a['id'] for a in batch])
+            seen_ids['articles'].extend([a['id'] for a in batch])
         
-        articles = articles[:limit]
+        # Get videos evenly
+        per_perspective = video_count // 3 + 1
+        for perspective in perspectives:
+            placeholders = ','.join(['?'] * len(seen_ids['videos'])) if seen_ids['videos'] else '0'
+            c.execute(f'''SELECT * FROM videos 
+                         WHERE perspective = ? AND id NOT IN ({placeholders})
+                         ORDER BY RANDOM() LIMIT ?''',
+                      [perspective] + (seen_ids['videos'] if seen_ids['videos'] else []) + [per_perspective])
+            batch = [dict(row) for row in c.fetchall()]
+            videos.extend(batch)
+            seen_ids['videos'].extend([v['id'] for v in batch])
     
-    random.shuffle(articles)
+    # Mix and shuffle
+    combined = []
+    for article in articles[:article_count]:
+        combined.append({
+            'type': 'article',
+            'data': article
+        })
+    
+    for video in videos[:video_count]:
+        combined.append({
+            'type': 'video',
+            'data': video
+        })
+    
+    random.shuffle(combined)
     conn.close()
     
-    return articles
+    return combined
 
 # ==================== ROUTES ====================
 @app.route('/')
@@ -416,7 +544,7 @@ def home():
 
 @app.route('/register', methods=['POST'])
 def register():
-    conn = get_db()
+    conn = sqlite3.connect('politiscope.db')
     c = conn.cursor()
     
     while True:
@@ -447,7 +575,7 @@ def login():
     data = request.json
     user_id = data.get('user_id', '')
     
-    conn = get_db()
+    conn = sqlite3.connect('politiscope.db')
     c = conn.cursor()
     c.execute('''SELECT id, condition, theme FROM users WHERE id = ?''', (user_id,))
     user = c.fetchone()
@@ -469,16 +597,32 @@ def login():
         })
 
 @app.route('/feed')
-@login_required
 def feed():
+    if 'user_id' not in session:
+        return redirect(url_for('home'))
+    
     user_id = session['user_id']
     condition = session['condition']
     
+    # Check if we need initial data
+    conn = sqlite3.connect('politiscope.db')
+    c = conn.cursor()
+    c.execute('SELECT COUNT(*) FROM articles')
+    article_count = c.fetchone()[0]
+    c.execute('SELECT COUNT(*) FROM videos')
+    video_count = c.fetchone()[0]
+    conn.close()
+    
+    if article_count < 10 or video_count < 5:
+        # First run - populate database
+        refresh_article_database()
+        refresh_video_database()
+    
     # Get initial batch
-    initial_batch = generate_content_batch(condition, user_id)
+    initial_batch = generate_content_batch(condition, user_id, limit=8)
     
     # Get user theme
-    conn = get_db()
+    conn = sqlite3.connect('politiscope.db')
     c = conn.cursor()
     c.execute("SELECT theme FROM users WHERE id = ?", (user_id,))
     user = c.fetchone()
@@ -492,47 +636,54 @@ def feed():
                                  initial_batch=json.dumps(initial_batch, default=str))
 
 @app.route('/api/load_more', methods=['POST'])
-@login_required
 def load_more():
+    if 'user_id' not in session:
+        return jsonify({'items': []})
+    
     data = request.json
     user_id = session['user_id']
     condition = session['condition']
-    seen_ids = data.get('seen_ids', [])
+    seen_ids = data.get('seen_ids', {'videos': [], 'articles': []})
     
-    new_batch = generate_content_batch(condition, user_id, limit=3, seen_ids=seen_ids)
+    new_batch = generate_content_batch(condition, user_id, limit=4, seen_ids=seen_ids)
     
     return jsonify({
         'items': new_batch,
-        'has_more': len(new_batch) > 0
+        'seen_ids': seen_ids
     })
 
 @app.route('/api/log_interaction', methods=['POST'])
-@login_required
 def log_interaction():
+    if 'user_id' not in session:
+        return jsonify({"status": "error"})
+    
     data = request.json
     user_id = session['user_id']
     
-    conn = get_db()
+    conn = sqlite3.connect('politiscope.db')
     c = conn.cursor()
     c.execute('''INSERT INTO interactions 
-                 (user_id, article_id, timestamp, action, time_spent, expand_duration, rating)
-                 VALUES (?, ?, ?, ?, ?, ?, ?)''',
-              (user_id, data.get('article_id'), datetime.now(), 
-               data.get('action'), data.get('time_spent', 0),
-               data.get('expand_duration'), data.get('rating')))
+                 (user_id, content_id, content_type, timestamp, action, time_spent, expand_duration, rating)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)''',
+              (user_id, data.get('content_id'), data.get('content_type'),
+               datetime.now(), data.get('action'), 
+               data.get('time_spent', 0), data.get('expand_duration'), 
+               data.get('rating')))
     conn.commit()
     conn.close()
     
     return jsonify({"status": "success"})
 
 @app.route('/api/set_theme', methods=['POST'])
-@login_required
 def set_theme():
+    if 'user_id' not in session:
+        return jsonify({"status": "error"})
+    
     data = request.json
     theme = data.get('theme', 'light')
     user_id = session['user_id']
     
-    conn = get_db()
+    conn = sqlite3.connect('politiscope.db')
     c = conn.cursor()
     c.execute("UPDATE users SET theme = ? WHERE id = ?", (theme, user_id))
     conn.commit()
@@ -542,35 +693,26 @@ def set_theme():
 
 @app.route('/admin')
 def admin():
-    conn = get_db()
+    conn = sqlite3.connect('politiscope.db')
     c = conn.cursor()
     
     c.execute("SELECT COUNT(*) FROM users")
     total_users = c.fetchone()[0]
     
-    c.execute("SELECT condition, COUNT(*) FROM users GROUP BY condition")
-    condition_counts = dict(c.fetchall())
+    c.execute("SELECT COUNT(*) FROM videos")
+    total_videos = c.fetchone()[0]
     
     c.execute("SELECT COUNT(*) FROM articles")
     total_articles = c.fetchone()[0]
+    
+    c.execute("SELECT perspective, COUNT(*) FROM videos GROUP BY perspective")
+    video_perspectives = dict(c.fetchall())
     
     c.execute("SELECT perspective, COUNT(*) FROM articles GROUP BY perspective")
     article_perspectives = dict(c.fetchall())
     
     c.execute("SELECT COUNT(*) FROM interactions")
     total_interactions = c.fetchone()[0]
-    
-    c.execute('''SELECT u.id, i.timestamp, a.perspective, a.source_name, i.action 
-                 FROM interactions i
-                 JOIN users u ON i.user_id = u.id
-                 JOIN articles a ON i.article_id = a.id
-                 ORDER BY i.timestamp DESC LIMIT 20''')
-    recent = c.fetchall()
-    
-    c.execute('SELECT COUNT(*) as cnt, perspective FROM articles GROUP BY perspective')
-    perspective_counts = c.fetchall()
-    
-    conn.close()
     
     html = f'''
     <!DOCTYPE html>
@@ -581,28 +723,17 @@ def admin():
             body {{ font-family: -apple-system, BlinkMacSystemFont, sans-serif; background: #f5f5f5; padding: 20px; }}
             .container {{ max-width: 1200px; margin: 0 auto; }}
             .header {{ background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; border-radius: 15px; margin-bottom: 30px; }}
-            .stats-grid {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; margin-bottom: 30px; }}
+            .stats-grid {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; }}
             .stat-card {{ background: white; border-radius: 10px; padding: 20px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }}
             .stat-number {{ font-size: 2em; font-weight: bold; color: #333; }}
-            table {{ width: 100%; background: white; border-radius: 10px; padding: 20px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); border-collapse: collapse; }}
-            th, td {{ padding: 10px; text-align: left; border-bottom: 1px solid #eee; }}
-            .badge {{
-                display: inline-block;
-                padding: 3px 8px;
-                border-radius: 12px;
-                font-size: 12px;
-                font-weight: bold;
-            }}
-            .badge-progressive {{ background: #ff6b6b20; color: #ff6b6b; }}
-            .badge-centrist {{ background: #4ecdc420; color: #4ecdc4; }}
-            .badge-conservative {{ background: #45b7d120; color: #45b7d1; }}
+            .button {{ background: #667eea; color: white; padding: 10px 20px; text-decoration: none; border-radius: 8px; display: inline-block; margin: 10px; }}
         </style>
     </head>
     <body>
         <div class="container">
             <div class="header">
                 <h1>🔬 PolitiScope Admin Dashboard</h1>
-                <p>LangChain-Powered RSS News Aggregator</p>
+                <p>Real Videos & Long-Form Articles</p>
             </div>
             
             <div class="stats-grid">
@@ -611,20 +742,36 @@ def admin():
                     <div class="stat-number">{total_users}</div>
                 </div>
                 <div class="stat-card">
-                    <h3>Normal (Filter Bubble)</h3>
-                    <div class="stat-number">{condition_counts.get('normal', 0)}</div>
+                    <h3>Videos</h3>
+                    <div class="stat-number">{total_videos}</div>
                 </div>
                 <div class="stat-card">
-                    <h3>Diverse (Balanced)</h3>
-                    <div class="stat-number">{condition_counts.get('diverse', 0)}</div>
-                </div>
-                <div class="stat-card">
-                    <h3>Articles in DB</h3>
+                    <h3>Articles</h3>
                     <div class="stat-number">{total_articles}</div>
                 </div>
                 <div class="stat-card">
-                    <h3>Total Interactions</h3>
+                    <h3>Interactions</h3>
                     <div class="stat-number">{total_interactions}</div>
+                </div>
+            </div>
+            
+            <h2>Actions</h2>
+            <a href="/api/refresh_videos" class="button">🔄 Refresh Videos</a>
+            <a href="/api/refresh_articles" class="button">🔄 Refresh Articles</a>
+            
+            <h2>Video Perspectives</h2>
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <h3>Progressive</h3>
+                    <div class="stat-number">{video_perspectives.get('progressive', 0)}</div>
+                </div>
+                <div class="stat-card">
+                    <h3>Centrist</h3>
+                    <div class="stat-number">{video_perspectives.get('centrist', 0)}</div>
+                </div>
+                <div class="stat-card">
+                    <h3>Conservative</h3>
+                    <div class="stat-number">{video_perspectives.get('conservative', 0)}</div>
                 </div>
             </div>
             
@@ -643,34 +790,23 @@ def admin():
                     <div class="stat-number">{article_perspectives.get('conservative', 0)}</div>
                 </div>
             </div>
-            
-            <h2>Recent Activity</h2>
-            <table>
-                <tr>
-                    <th>User ID</th>
-                    <th>Time</th>
-                    <th>Source</th>
-                    <th>Perspective</th>
-                    <th>Action</th>
-                </tr>
-                {"".join(f"<tr><td>{r[0]}</td><td>{r[1][:19]}</td><td>{r[3]}</td><td><span class='badge badge-{r[2]}'>{r[2]}</span></td><td>{r[4]}</td></tr>" for r in recent)}
-            </table>
-            
-            <div style="margin-top: 30px; text-align: center;">
-                <a href="/api/refresh_now" style="background: #667eea; color: white; padding: 10px 20px; text-decoration: none; border-radius: 8px;">🔄 Refresh Feeds Now</a>
-            </div>
         </div>
     </body>
     </html>
     '''
     
+    conn.close()
     return html
 
-@app.route('/api/refresh_now')
-def refresh_now():
-    """Manual trigger for feed refresh"""
+@app.route('/api/refresh_videos')
+def refresh_videos():
+    count = refresh_video_database()
+    return f"✅ Added {count} new videos. <a href='/admin'>Back to Admin</a>"
+
+@app.route('/api/refresh_articles')
+def refresh_articles():
     count = refresh_article_database()
-    return f"✅ Refreshed! Added {count} new articles. <a href='/admin'>Back to Admin</a>"
+    return f"✅ Added {count} new articles. <a href='/admin'>Back to Admin</a>"
 
 # ==================== HTML TEMPLATES ====================
 HOME_HTML = '''
@@ -678,12 +814,10 @@ HOME_HTML = '''
 <html>
 <head>
     <title>PolitiScope Research</title>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <style>
-        * { box-sizing: border-box; margin: 0; padding: 0; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, sans-serif;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             min-height: 100vh;
             display: flex;
@@ -700,40 +834,32 @@ HOME_HTML = '''
             width: 100%;
             text-align: center;
         }
-        h1 { color: #333; margin-bottom: 10px; font-size: 2.5em; }
-        .subtitle { color: #666; margin-bottom: 30px; }
-        .btn-container { display: flex; flex-direction: column; gap: 15px; margin: 30px 0; }
+        h1 { color: #333; margin-bottom: 10px; }
         .btn {
-            background: #667eea; color: white; border: none; padding: 18px;
-            border-radius: 12px; font-size: 1.1em; cursor: pointer;
-            transition: transform 0.2s;
+            background: #667eea; color: white; border: none;
+            padding: 18px; border-radius: 12px; font-size: 1.1em;
+            cursor: pointer; width: 100%; margin: 10px 0;
         }
-        .btn:hover { transform: translateY(-2px); background: #5a6fd8; }
+        .btn:hover { background: #5a6fd8; }
         .btn-secondary { background: #764ba2; }
-        .footer { margin-top: 30px; font-size: 0.8em; color: #999; }
-        .footer a { color: #667eea; text-decoration: none; }
     </style>
 </head>
 <body>
     <div class="container">
         <h1>📊 PolitiScope</h1>
-        <p class="subtitle">Real News from Trusted Sources • Research Study</p>
+        <p>Real Videos • Long-Form Articles • Research Study</p>
         
-        <div class="btn-container">
-            <button class="btn" onclick="register()">🆕 New Participant</button>
-            <button class="btn btn-secondary" onclick="login()">🔑 Returning</button>
-        </div>
-        <div class="footer">
-            <p>Pulling from 20+ news sources • Updated hourly</p>
-            <p><a href="/admin">Admin Dashboard</a></p>
-        </div>
+        <button class="btn" onclick="register()">🆕 New Participant</button>
+        <button class="btn btn-secondary" onclick="login()">🔑 Returning</button>
+        
+        <p style="margin-top: 20px;"><a href="/admin">Admin Dashboard</a></p>
     </div>
     
     <script>
         async function register() {
             const res = await fetch('/register', { method: 'POST' });
             const data = await res.json();
-            alert(`✅ Your 4-digit ID: ${data.user_id}\\n\\n⚠️ SAVE THIS! You'll need it to log in.`);
+            alert(`✅ Your ID: ${data.user_id}`);
             window.location.href = '/feed';
         }
         
@@ -751,8 +877,6 @@ HOME_HTML = '''
                 } else {
                     alert(data.message);
                 }
-            } else {
-                alert("Please enter a valid 4-digit ID");
             }
         }
     </script>
@@ -765,282 +889,102 @@ FEED_HTML = '''
 <html>
 <head>
     <title>PolitiScope Feed</title>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <style>
-        * { box-sizing: border-box; margin: 0; padding: 0; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
             font-family: -apple-system, BlinkMacSystemFont, sans-serif;
             background: {{ '#000' if theme == 'dark' else '#f5f5f5' }};
             color: {{ '#fff' if theme == 'dark' else '#333' }};
             padding: 20px;
-            transition: all 0.3s;
         }
         .header {
-            position: sticky;
-            top: 0;
-            z-index: 100;
+            position: sticky; top: 0;
             background: {{ '#000' if theme == 'dark' else '#f5f5f5' }};
-            padding: 15px 0;
-            margin-bottom: 20px;
-            border-bottom: 1px solid {{ '#333' if theme == 'dark' else '#ddd' }};
+            padding: 15px; border-bottom: 1px solid #ddd;
+            display: flex; justify-content: space-between;
+            z-index: 100;
         }
-        .header-content {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            max-width: 800px;
-            margin: 0 auto;
-        }
-        .user-info {
-            display: flex;
-            align-items: center;
-            gap: 15px;
-        }
-        .user-id {
-            font-family: monospace;
-            background: {{ '#333' if theme == 'dark' else '#f0f0f0' }};
-            padding: 8px 15px;
-            border-radius: 20px;
-        }
-        .timer-container {
-            text-align: center;
+        .feed-container { max-width: 800px; margin: 20px auto; }
+        
+        /* Video Card */
+        .video-card, .article-card {
             background: {{ '#1a1a1a' if theme == 'dark' else 'white' }};
-            border-radius: 15px;
-            padding: 15px;
-            margin-bottom: 20px;
-            box-shadow: 0 4px 12px {{ 'rgba(0,0,0,0.3)' if theme == 'dark' else 'rgba(0,0,0,0.1)' }};
-            max-width: 800px;
-            margin-left: auto;
-            margin-right: auto;
-        }
-        .timer-display {
-            font-size: 3em;
-            font-family: monospace;
-            font-weight: bold;
-            color: #667eea;
-            margin: 10px 0;
-        }
-        .progress-bar {
-            width: 100%;
-            height: 8px;
-            background: {{ '#333' if theme == 'dark' else '#e0e0e0' }};
-            border-radius: 4px;
-            margin: 15px 0;
-            overflow: hidden;
-        }
-        .progress-fill {
-            height: 100%;
-            background: linear-gradient(90deg, #ff6b6b, #4ecdc4, #45b7d1);
-            width: 0%;
-            transition: width 0.3s;
-        }
-        .feed-container {
-            max-width: 800px;
-            margin: 0 auto;
-        }
-        .content-card {
-            background: {{ '#1a1a1a' if theme == 'dark' else 'white' }};
-            border-radius: 15px;
-            padding: 25px;
-            margin-bottom: 25px;
-            box-shadow: 0 4px 12px {{ 'rgba(0,0,0,0.3)' if theme == 'dark' else 'rgba(0,0,0,0.1)' }};
+            border-radius: 15px; padding: 20px; margin-bottom: 20px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
             border-left: 6px solid;
         }
         .progressive { border-left-color: #ff6b6b; }
         .centrist { border-left-color: #4ecdc4; }
         .conservative { border-left-color: #45b7d1; }
-        .card-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 15px;
-            flex-wrap: wrap;
-            gap: 10px;
+        
+        .video-container {
+            position: relative; width: 100%; margin: 15px 0;
         }
+        .video-container iframe {
+            width: 100%; height: 400px; border-radius: 10px;
+        }
+        
+        .article-content {
+            line-height: 1.8; font-size: 1.1em;
+            max-height: 500px; overflow-y: auto;
+            margin: 15px 0; padding: 15px;
+            background: {{ 'rgba(255,255,255,0.02)' if theme == 'dark' else 'rgba(0,0,0,0.02)' }};
+            border-radius: 10px;
+        }
+        
         .badge {
-            display: inline-block;
-            padding: 5px 12px;
-            border-radius: 20px;
-            font-size: 12px;
-            font-weight: bold;
+            display: inline-block; padding: 5px 12px;
+            border-radius: 20px; font-size: 12px; font-weight: bold;
+            margin-right: 10px;
         }
         .badge-progressive { background: #ff6b6b20; color: #ff6b6b; }
         .badge-centrist { background: #4ecdc420; color: #4ecdc4; }
         .badge-conservative { background: #45b7d120; color: #45b7d1; }
-        .source-name {
-            font-size: 14px;
-            color: #888;
+        
+        .stats {
+            display: flex; gap: 20px; margin: 10px 0;
+            color: #888; font-size: 14px;
         }
-        h2 { font-size: 1.5em; margin-bottom: 10px; line-height: 1.3; }
-        .summary {
-            font-size: 1.1em;
-            color: {{ '#ccc' if theme == 'dark' else '#555' }};
-            margin-bottom: 15px;
-            line-height: 1.6;
-        }
-        .article-image {
-            width: 100%;
-            max-height: 300px;
-            object-fit: cover;
-            border-radius: 10px;
-            margin: 15px 0;
-        }
-        .expand-btn {
-            background: {{ 'rgba(255,255,255,0.05)' if theme == 'dark' else 'rgba(0,0,0,0.02)' }};
-            border: 1px solid {{ '#444' if theme == 'dark' else '#ddd' }};
-            color: {{ '#fff' if theme == 'dark' else '#333' }};
-            padding: 12px;
-            border-radius: 25px;
-            cursor: pointer;
-            width: 100%;
-            margin: 10px 0;
-            font-size: 14px;
-            text-align: left;
-            transition: background 0.2s;
-        }
-        .expand-btn:hover {
-            background: {{ 'rgba(255,255,255,0.1)' if theme == 'dark' else 'rgba(0,0,0,0.05)' }};
-        }
-        .expanded-content {
-            display: none;
-            margin-top: 15px;
-            padding: 20px;
-            background: {{ 'rgba(255,255,255,0.02)' if theme == 'dark' else 'rgba(0,0,0,0.02)' }};
-            border-radius: 10px;
-            border-left: 4px solid #667eea;
-        }
-        .full-article {
-            line-height: 1.8;
-            margin-bottom: 20px;
-        }
-        .source-link {
-            display: inline-block;
-            margin: 10px 0;
-            padding: 8px 16px;
-            background: #667eea;
-            color: white;
-            text-decoration: none;
-            border-radius: 20px;
-            font-size: 14px;
-        }
-        .source-link:hover {
-            background: #5a6fd8;
-        }
-        .keywords {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 8px;
-            margin: 15px 0;
-        }
-        .keyword {
-            background: {{ '#333' if theme == 'dark' else '#f0f0f0' }};
-            color: {{ '#fff' if theme == 'dark' else '#333' }};
-            padding: 4px 10px;
-            border-radius: 15px;
-            font-size: 12px;
-        }
+        
         .buttons {
-            display: flex;
-            gap: 10px;
-            margin: 20px 0 10px;
-            flex-wrap: wrap;
+            display: flex; gap: 10px; margin-top: 15px;
         }
         .btn {
-            flex: 1;
-            min-width: 100px;
-            padding: 12px;
-            border: none;
-            border-radius: 10px;
-            cursor: pointer;
-            font-weight: bold;
-            color: white;
-            transition: transform 0.2s;
-        }
-        .btn:hover {
-            transform: translateY(-2px);
+            flex: 1; padding: 12px; border: none; border-radius: 10px;
+            cursor: pointer; font-weight: bold; color: white;
         }
         .btn-interested { background: #3498db; }
-        .btn-interested.active { background: #2ecc71; }
         .btn-informative { background: #2ecc71; }
         .btn-not-useful { background: #e74c3c; }
+        
         .theme-toggle {
-            position: fixed;
-            bottom: 20px;
-            right: 20px;
+            position: fixed; bottom: 20px; right: 20px;
             background: {{ '#333' if theme == 'dark' else '#f0f0f0' }};
             color: {{ '#fff' if theme == 'dark' else '#333' }};
-            border: none;
-            padding: 12px 25px;
-            border-radius: 30px;
-            cursor: pointer;
-            font-size: 14px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
-            z-index: 1000;
+            border: none; padding: 12px 25px; border-radius: 30px;
+            cursor: pointer; z-index: 1000;
         }
         .exit-btn {
-            position: fixed;
-            top: 20px;
-            right: 20px;
-            background: {{ '#e74c3c' if theme == 'dark' else '#f0f0f0' }};
-            color: {{ '#fff' if theme == 'dark' else '#333' }};
-            border: none;
-            padding: 8px 20px;
-            border-radius: 20px;
-            cursor: pointer;
-            font-size: 14px;
-            z-index: 1000;
-        }
-        .exit-btn:hover {
-            background: #c0392b;
-            color: white;
-        }
-        .loading {
-            text-align: center;
-            padding: 30px;
-            color: #888;
-        }
-        .infinite-scroll-trigger {
-            height: 20px;
-            margin: 30px 0;
-            text-align: center;
-        }
-        .published-date {
-            font-size: 12px;
-            color: #888;
-            margin-top: 5px;
+            position: fixed; top: 20px; right: 20px;
+            background: #e74c3c; color: white;
+            border: none; padding: 8px 20px; border-radius: 20px;
+            cursor: pointer; z-index: 1000;
         }
     </style>
 </head>
 <body>
     <div class="header">
-        <div class="header-content">
-            <div class="user-info">
-                <span class="user-id">{{ user_id }}</span>
-            </div>
-            <div class="timer" id="timer">00:00</div>
-        </div>
-    </div>
-    
-    <!-- PROMINENT 20-MINUTE TIMER DISPLAY -->
-    <div class="timer-container">
-        <div class="timer-label">⏱️ TODAY'S SESSION</div>
-        <div class="timer-display" id="bigTimer">00:00</div>
-        <div class="progress-bar">
-            <div class="progress-fill" id="progressFill"></div>
-        </div>
-        <div class="target-time">Target: 20 minutes • Endless news from trusted sources</div>
+        <div>ID: <span class="user-id">{{ user_id }}</span></div>
+        <div id="timer">00:00</div>
     </div>
     
     <div class="feed-container" id="feed"></div>
-    <div class="infinite-scroll-trigger" id="scrollTrigger"></div>
-    <div class="loading" id="loading" style="display: none;">📰 Loading more news...</div>
+    <div id="loading" style="text-align: center; padding: 20px;">Loading...</div>
     
     <button class="theme-toggle" onclick="toggleTheme()">
         {{ '☀️ Light' if theme == 'dark' else '🌙 Dark' }}
     </button>
-    
-    <button class="exit-btn" onclick="exitSession()">✕ Exit</button>
+    <button class="exit-btn" onclick="window.location.href='/'">✕ Exit</button>
     
     <script>
         const userId = '{{ user_id }}';
@@ -1048,319 +992,162 @@ FEED_HTML = '''
         const initialBatch = {{ initial_batch | safe }};
         
         let allItems = [...initialBatch];
-        let seenIds = new Set(initialBatch.map(item => item.id));
+        let seenIds = {videos: [], articles: []};
         let startTime = Date.now();
         let expandTimes = {};
-        let cardStartTimes = {};
-        let isLoading = false;
-        let currentPage = 1;
         
-        console.log('🔬 Research condition for user', userId + ':', condition);
-        console.log('Initial feed loaded with', allItems.length, 'articles');
-        
-        // Render feed
         function renderFeed() {
             const feed = document.getElementById('feed');
-            if (!feed) return;
-            
             feed.innerHTML = '';
-            allItems.forEach((item, index) => {
-                const card = createCard(item, index);
-                feed.appendChild(card);
-            });
             
-            setupInfiniteScroll();
+            allItems.forEach(item => {
+                if (item.type === 'video') {
+                    feed.appendChild(createVideoCard(item.data));
+                } else {
+                    feed.appendChild(createArticleCard(item.data));
+                }
+            });
         }
         
-        function createCard(item, index) {
+        function createVideoCard(video) {
             const card = document.createElement('div');
-            card.className = `content-card ${item.perspective}`;
-            card.dataset.articleId = item.id;
-            card.dataset.index = index;
-            
-            const perspectiveEmoji = item.perspective === 'progressive' ? '🔴' : 
-                                    item.perspective === 'centrist' ? '⚪' : '🔵';
-            
-            // Parse keywords if present
-            let keywords = [];
-            try {
-                if (item.keywords) {
-                    keywords = JSON.parse(item.keywords);
-                }
-            } catch (e) {
-                // Not JSON, ignore
-            }
-            
-            // Format date
-            let publishedDate = '';
-            if (item.published) {
-                const date = new Date(item.published);
-                publishedDate = date.toLocaleDateString('en-US', { 
-                    month: 'short', 
-                    day: 'numeric',
-                    year: 'numeric'
-                });
-            }
-            
+            card.className = `video-card ${video.perspective}`;
             card.innerHTML = `
                 <div>
-                    <div class="card-header">
-                        <span class="badge badge-${item.perspective}">
-                            ${perspectiveEmoji} ${item.perspective.toUpperCase()}
-                        </span>
-                        <span class="source-name">📰 ${item.source_name || 'Unknown Source'}</span>
+                    <span class="badge badge-${video.perspective}">🎬 ${video.perspective.toUpperCase()}</span>
+                    <span>📺 ${video.channel_name}</span>
+                    <h2>${video.title}</h2>
+                    <p>${video.description.substring(0, 200)}...</p>
+                    
+                    <div class="video-container">
+                        <iframe src="${video.embed_url}" frameborder="0" allowfullscreen></iframe>
                     </div>
                     
-                    <h2>${item.title || 'Untitled'}</h2>
-                    <div class="summary">${item.summary || ''}</div>
-                    
-                    ${item.image_url ? `<img class="article-image" src="${item.image_url}" alt="Article image" onerror="this.style.display='none'">` : ''}
-                    
-                    <button class="expand-btn" onclick="toggleExpand(this, ${item.id})">
-                        ▼ Read Full Analysis
-                    </button>
-                    
-                    <div class="expanded-content" id="expand-${item.id}">
-                        <div class="full-article">${item.content || 'Full content available at source.'}</div>
-                        
-                        ${keywords.length > 0 ? `
-                            <div class="keywords">
-                                ${keywords.slice(0, 5).map(k => `<span class="keyword">#${k}</span>`).join('')}
-                            </div>
-                        ` : ''}
-                        
-                        <a href="${item.link}" target="_blank" class="source-link">📖 Read at ${item.source_name || 'Source'}</a>
-                        
-                        ${publishedDate ? `<div class="published-date">Published: ${publishedDate}</div>` : ''}
+                    <div class="stats">
+                        <span>👁️ ${video.view_count?.toLocaleString() || 'N/A'} views</span>
+                        <span>👍 ${video.like_count?.toLocaleString() || 'N/A'} likes</span>
+                        <span>💬 ${video.comment_count?.toLocaleString() || 'N/A'} comments</span>
                     </div>
                 </div>
                 
-                <div>
-                    <div class="buttons">
-                        <button class="btn btn-interested" onclick="markInterested(${item.id}, this)">
-                            🔖 Interested
-                        </button>
-                        <button class="btn btn-informative" onclick="rateContent(${item.id}, 'informative')">
-                            ✅ Informative
-                        </button>
-                        <button class="btn btn-not-useful" onclick="rateContent(${item.id}, 'not_useful')">
-                            ❌ Not Useful
-                        </button>
-                    </div>
+                <div class="buttons">
+                    <button class="btn btn-interested" onclick="markInterested('video', ${video.id})">🔖 Interested</button>
+                    <button class="btn btn-informative" onclick="rateContent('video', ${video.id}, 'informative')">✅ Informative</button>
+                    <button class="btn btn-not-useful" onclick="rateContent('video', ${video.id}, 'not_useful')">❌ Not Useful</button>
                 </div>
             `;
-            
             return card;
         }
         
-        // Infinite scroll setup
-        function setupInfiniteScroll() {
-            const observer = new IntersectionObserver((entries) => {
-                entries.forEach(entry => {
-                    if (entry.isIntersecting && !isLoading) {
-                        loadMoreContent();
-                    }
-                });
+        function createArticleCard(article) {
+            const card = document.createElement('div');
+            card.className = `article-card ${article.perspective}`;
+            
+            // Parse word count
+            const wordCount = article.word_count || article.content.split(' ').length;
+            const readTime = Math.ceil(wordCount / 200);
+            
+            card.innerHTML = `
+                <div>
+                    <span class="badge badge-${article.perspective}">📰 ${article.perspective.toUpperCase()}</span>
+                    <span>📝 ${article.source_name}</span>
+                    <h2>${article.title}</h2>
+                    
+                    <div class="stats">
+                        <span>📖 ${wordCount} words</span>
+                        <span>⏱️ ${readTime} min read</span>
+                        <span>✍️ ${article.author || 'Unknown'}</span>
+                    </div>
+                    
+                    <div class="article-content">
+                        ${article.content}
+                    </div>
+                    
+                    <p><a href="${article.source_url}" target="_blank">🔗 Read original at ${article.source_name}</a></p>
+                </div>
+                
+                <div class="buttons">
+                    <button class="btn btn-interested" onclick="markInterested('article', ${article.id})">🔖 Interested</button>
+                    <button class="btn btn-informative" onclick="rateContent('article', ${article.id}, 'informative')">✅ Informative</button>
+                    <button class="btn btn-not-useful" onclick="rateContent('article', ${article.id}, 'not_useful')">❌ Not Useful</button>
+                </div>
+            `;
+            return card;
+        }
+        
+        async function loadMore() {
+            const res = await fetch('/api/load_more', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({seen_ids: seenIds})
+            });
+            const data = await res.json();
+            
+            data.items.forEach(item => {
+                allItems.push(item);
+                if (item.type === 'video') {
+                    seenIds.videos.push(item.data.id);
+                } else {
+                    seenIds.articles.push(item.data.id);
+                }
             });
             
-            const trigger = document.getElementById('scrollTrigger');
-            if (trigger) {
-                observer.observe(trigger);
-            }
+            renderFeed();
         }
         
-        // Load more content from server
-        async function loadMoreContent() {
-            if (isLoading) return;
-            
-            isLoading = true;
-            document.getElementById('loading').style.display = 'block';
-            
-            try {
-                const res = await fetch('/api/load_more', {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({
-                        seen_ids: Array.from(seenIds)
-                    })
-                });
-                
-                const data = await res.json();
-                
-                if (data.items && data.items.length > 0) {
-                    data.items.forEach(item => {
-                        if (!seenIds.has(item.id)) {
-                            allItems.push(item);
-                            seenIds.add(item.id);
-                        }
-                    });
-                    
-                    renderFeed();
-                }
-                
-            } catch (error) {
-                console.error('Error loading more content:', error);
-            } finally {
-                isLoading = false;
-                document.getElementById('loading').style.display = 'none';
-            }
-        }
-        
-        // Expand/collapse tracking
-        function toggleExpand(btn, articleId) {
-            const expanded = document.getElementById(`expand-${articleId}`);
-            const isExpanding = expanded.style.display === 'none';
-            
-            if (isExpanding) {
-                expanded.style.display = 'block';
-                btn.innerHTML = '▲ Collapse Analysis';
-                expandTimes[articleId] = Date.now();
-                
-                fetch('/api/log_interaction', {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({
-                        article_id: articleId,
-                        action: 'expand_start'
-                    })
-                });
-            } else {
-                expanded.style.display = 'none';
-                btn.innerHTML = '▼ Read Full Analysis';
-                
-                if (expandTimes[articleId]) {
-                    const duration = Math.floor((Date.now() - expandTimes[articleId]) / 1000);
-                    
-                    fetch('/api/log_interaction', {
-                        method: 'POST',
-                        headers: {'Content-Type': 'application/json'},
-                        body: JSON.stringify({
-                            article_id: articleId,
-                            action: 'expand_end',
-                            expand_duration: duration
-                        })
-                    });
-                    
-                    delete expandTimes[articleId];
-                }
-            }
-        }
-        
-        // Interested button
-        function markInterested(articleId, btn) {
-            btn.classList.add('active');
-            btn.textContent = '✓ Interested';
-            
+        function markInterested(type, id) {
             fetch('/api/log_interaction', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify({
-                    article_id: articleId,
+                    content_id: id,
+                    content_type: type,
                     action: 'interested'
                 })
             });
-            
-            alert('✅ Thanks! Your interest has been recorded.');
+            alert('✅ Interest recorded');
         }
         
-        // Rate content
-        function rateContent(articleId, rating) {
+        function rateContent(type, id, rating) {
             fetch('/api/log_interaction', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify({
-                    article_id: articleId,
+                    content_id: id,
+                    content_type: type,
                     action: 'rate',
                     rating: rating
                 })
             });
-            
-            alert(rating === 'informative' ? '✅ Rated as informative' : '❌ Rated as not useful');
+            alert(rating === 'informative' ? '✅ Rated informative' : '❌ Rated not useful');
         }
         
-        // Timer and progress
         function updateTimer() {
             const elapsed = Math.floor((Date.now() - startTime) / 1000);
             const mins = Math.floor(elapsed / 60);
             const secs = elapsed % 60;
-            const timeString = `${mins.toString().padStart(2,'0')}:${secs.toString().padStart(2,'0')}`;
-            
-            document.getElementById('timer').textContent = timeString;
-            document.getElementById('bigTimer').textContent = timeString;
-            
-            const progress = Math.min((elapsed / 1200) * 100, 100);
-            document.getElementById('progressFill').style.width = progress + '%';
+            document.getElementById('timer').textContent = `${mins.toString().padStart(2,'0')}:${secs.toString().padStart(2,'0')}`;
         }
         
-        // Exit session
-        function exitSession() {
-            const elapsed = Math.floor((Date.now() - startTime) / 1000);
-            const mins = Math.floor(elapsed / 60);
-            const secs = elapsed % 60;
-            
-            if (confirm(`⏱️ You spent ${mins}:${secs.toString().padStart(2,'0')} minutes today.\\n\\nExit to homepage?`)) {
-                window.location.href = '/';
-            }
-        }
-        
-        // Toggle theme
         async function toggleTheme() {
-            const isDark = document.body.classList.contains('dark');
-            const theme = isDark ? 'light' : 'dark';
-            
+            const theme = document.body.style.background === 'rgb(0, 0, 0)' ? 'light' : 'dark';
             await fetch('/api/set_theme', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify({theme: theme})
             });
-            
             location.reload();
         }
         
         // Initialize
-        document.addEventListener('DOMContentLoaded', function() {
-            renderFeed();
-            setInterval(updateTimer, 1000);
-            
-            // Log view for first card when user scrolls to it
-            const observer = new IntersectionObserver((entries) => {
-                entries.forEach(entry => {
-                    if (entry.isIntersecting) {
-                        const card = entry.target;
-                        const articleId = card.dataset.articleId;
-                        const index = parseInt(card.dataset.index);
-                        
-                        if (!cardStartTimes[index]) {
-                            cardStartTimes[index] = Date.now();
-                        }
-                    }
-                });
-            }, { threshold: 0.5 });
-            
-            // Observe all cards
-            setTimeout(() => {
-                document.querySelectorAll('.content-card').forEach(card => {
-                    observer.observe(card);
-                });
-            }, 500);
-        });
+        renderFeed();
+        setInterval(updateTimer, 1000);
         
-        // Log view time when leaving page
-        window.addEventListener('beforeunload', function() {
-            Object.keys(cardStartTimes).forEach(index => {
-                const timeSpent = Math.floor((Date.now() - cardStartTimes[index]) / 1000);
-                if (timeSpent > 2) {  // Only log if spent more than 2 seconds
-                    const card = document.querySelector(`[data-index="${index}"]`);
-                    if (card) {
-                        const articleId = card.dataset.articleId;
-                        navigator.sendBeacon('/api/log_interaction', JSON.stringify({
-                            article_id: parseInt(articleId),
-                            action: 'view',
-                            time_spent: timeSpent
-                        }));
-                    }
-                }
-            });
+        // Infinite scroll
+        window.addEventListener('scroll', () => {
+            if (window.innerHeight + window.scrollY >= document.body.offsetHeight - 1000) {
+                loadMore();
+            }
         });
     </script>
 </body>
@@ -1368,9 +1155,23 @@ FEED_HTML = '''
 '''
 
 # ==================== INITIAL DATA LOAD ====================
-# Run once at startup to populate database
 with app.app_context():
-    refresh_article_database()
+    # Check if we need initial data
+    conn = sqlite3.connect('politiscope.db')
+    c = conn.cursor()
+    c.execute('SELECT COUNT(*) FROM articles')
+    article_count = c.fetchone()[0]
+    c.execute('SELECT COUNT(*) FROM videos')
+    video_count = c.fetchone()[0]
+    conn.close()
+    
+    if article_count == 0:
+        print("📰 Initial article load...")
+        refresh_article_database()
+    
+    if video_count == 0:
+        print("📹 Initial video load...")
+        refresh_video_database()
 
 # ==================== RUN APPLICATION ====================
 if __name__ == '__main__':
