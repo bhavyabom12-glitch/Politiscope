@@ -162,20 +162,20 @@ def init_database():
                   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)''')
     
     # Articles table (long-form articles)
-    c.execute('''CREATE TABLE IF NOT EXISTS articles
-                 (id INTEGER PRIMARY KEY AUTOINCREMENT,
-                  guid TEXT UNIQUE,
-                  title TEXT,
-                  content TEXT,  # Full article content
-                  summary TEXT,
-                  source_name TEXT,
-                  source_url TEXT,
-                  perspective TEXT,
-                  author TEXT,
-                  published TIMESTAMP,
-                  image_url TEXT,
-                  word_count INTEGER,
-                  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)''')
+c.execute('''CREATE TABLE IF NOT EXISTS articles
+             (id INTEGER PRIMARY KEY AUTOINCREMENT,
+              guid TEXT UNIQUE,
+              title TEXT,
+              content TEXT,
+              summary TEXT,
+              source_name TEXT,
+              source_url TEXT,
+              perspective TEXT,
+              author TEXT,
+              published TIMESTAMP,
+              image_url TEXT,
+              word_count INTEGER,
+              created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)''')
     
     # Interactions table
     c.execute('''CREATE TABLE IF NOT EXISTS interactions
