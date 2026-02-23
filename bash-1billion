@@ -1,0 +1,3 @@
+git add app.py
+git commit -m "Fixed indentation error in database initialization"
+git push
