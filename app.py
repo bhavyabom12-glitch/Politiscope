@@ -133,17 +133,21 @@ ARTICLE_SOURCES = {
 }
 
 # ==================== DATABASE SETUP ====================
-def init_database():
+    # Interactions table
+    def init_database():
     conn = sqlite3.connect('politiscope.db')
     c = conn.cursor()
     
     # Users table
     c.execute('''CREATE TABLE IF NOT EXISTS users
-                 (id TEXT PRIMARY KEY, created_at TIMESTAMP,
-                  condition TEXT, theme TEXT DEFAULT 'light',
-                  pre_test_data TEXT, post_test_data TEXT)''')
+                 (id TEXT PRIMARY KEY,
+                  created_at TIMESTAMP,
+                  condition TEXT,
+                  theme TEXT DEFAULT 'light',
+                  pre_test_data TEXT,
+                  post_test_data TEXT)''')
     
-    # Videos table (real videos)
+    # Videos table
     c.execute('''CREATE TABLE IF NOT EXISTS videos
                  (id INTEGER PRIMARY KEY AUTOINCREMENT,
                   video_id TEXT UNIQUE,
@@ -161,33 +165,37 @@ def init_database():
                   embed_url TEXT,
                   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)''')
     
-    # Articles table (long-form articles)
-c.execute('''CREATE TABLE IF NOT EXISTS articles
-             (id INTEGER PRIMARY KEY AUTOINCREMENT,
-              guid TEXT UNIQUE,
-              title TEXT,
-              content TEXT,
-              summary TEXT,
-              source_name TEXT,
-              source_url TEXT,
-              perspective TEXT,
-              author TEXT,
-              published TIMESTAMP,
-              image_url TEXT,
-              word_count INTEGER,
-              created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)''')
+    # Articles table
+    c.execute('''CREATE TABLE IF NOT EXISTS articles
+                 (id INTEGER PRIMARY KEY AUTOINCREMENT,
+                  guid TEXT UNIQUE,
+                  title TEXT,
+                  content TEXT,
+                  summary TEXT,
+                  source_name TEXT,
+                  source_url TEXT,
+                  perspective TEXT,
+                  author TEXT,
+                  published TIMESTAMP,
+                  image_url TEXT,
+                  word_count INTEGER,
+                  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)''')
     
-    # Interactions table
+    # Interactions table - FIXED INDENTATION
     c.execute('''CREATE TABLE IF NOT EXISTS interactions
                  (id INTEGER PRIMARY KEY AUTOINCREMENT,
                   user_id TEXT,
                   content_id INTEGER,
-                  content_type TEXT,  # 'video' or 'article'
+                  content_type TEXT,
                   timestamp TIMESTAMP,
                   action TEXT,
                   time_spent INTEGER,
                   expand_duration INTEGER,
                   rating TEXT)''')
+    
+    conn.commit()
+    conn.close()
+    print("✅ Database initialized")
     
     conn.commit()
     conn.close()
