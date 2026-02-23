@@ -133,8 +133,7 @@ ARTICLE_SOURCES = {
 }
 
 # ==================== DATABASE SETUP ====================
-    # Interactions table
-    def init_database():
+def init_database():
     conn = sqlite3.connect('politiscope.db')
     c = conn.cursor()
     
@@ -181,7 +180,7 @@ ARTICLE_SOURCES = {
                   word_count INTEGER,
                   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)''')
     
-    # Interactions table - FIXED INDENTATION
+    # Interactions table
     c.execute('''CREATE TABLE IF NOT EXISTS interactions
                  (id INTEGER PRIMARY KEY AUTOINCREMENT,
                   user_id TEXT,
@@ -192,10 +191,6 @@ ARTICLE_SOURCES = {
                   time_spent INTEGER,
                   expand_duration INTEGER,
                   rating TEXT)''')
-    
-    conn.commit()
-    conn.close()
-    print("✅ Database initialized")
     
     conn.commit()
     conn.close()
@@ -285,7 +280,7 @@ def fetch_full_article(url):
             'authors': article.authors,
             'publish_date': article.publish_date,
             'top_image': article.top_image,
-            'videos': article.movies,  # Actual videos in the article
+            'videos': article.movies,
             'word_count': len(article.text.split())
         }
     except Exception as e:
@@ -499,7 +494,7 @@ def generate_content_batch(condition, user_id, limit=5, seen_ids=None):
                 seen_ids['videos'].append(video['id'])
     
     else:
-        # Diverse - balanced across perspectives
+        # DIVERSE: Equal representation
         perspectives = ['progressive', 'centrist', 'conservative']
         
         # Get articles evenly
@@ -914,7 +909,6 @@ FEED_HTML = '''
         }
         .feed-container { max-width: 800px; margin: 20px auto; }
         
-        /* Video Card */
         .video-card, .article-card {
             background: {{ '#1a1a1a' if theme == 'dark' else 'white' }};
             border-radius: 15px; padding: 20px; margin-bottom: 20px;
@@ -1051,7 +1045,6 @@ FEED_HTML = '''
             const card = document.createElement('div');
             card.className = `article-card ${article.perspective}`;
             
-            // Parse word count
             const wordCount = article.word_count || article.content.split(' ').length;
             const readTime = Math.ceil(wordCount / 200);
             
@@ -1147,11 +1140,9 @@ FEED_HTML = '''
             location.reload();
         }
         
-        // Initialize
         renderFeed();
         setInterval(updateTimer, 1000);
         
-        // Infinite scroll
         window.addEventListener('scroll', () => {
             if (window.innerHeight + window.scrollY >= document.body.offsetHeight - 1000) {
                 loadMore();
@@ -1164,7 +1155,6 @@ FEED_HTML = '''
 
 # ==================== INITIAL DATA LOAD ====================
 with app.app_context():
-    # Check if we need initial data
     conn = sqlite3.connect('politiscope.db')
     c = conn.cursor()
     c.execute('SELECT COUNT(*) FROM articles')
